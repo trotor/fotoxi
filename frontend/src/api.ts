@@ -1,0 +1,152 @@
+const BASE = '/api'
+
+export interface ImageData {
+  id: number
+  file_path: string
+  file_name: string
+  file_size: number
+  width: number | null
+  height: number | null
+  format: string | null
+  exif_date: string | null
+  exif_camera_make: string | null
+  exif_camera_model: string | null
+  exif_gps_lat: number | null
+  exif_gps_lon: number | null
+  exif_focal_length: number | null
+  exif_aperture: number | null
+  exif_iso: number | null
+  exif_exposure: string | null
+  ai_description: string | null
+  ai_tags: string[]
+  ai_quality_score: number | null
+  ai_model: string | null
+  status: string
+  source_type: string
+  indexed_at: string | null
+}
+
+export interface SearchResponse {
+  images: ImageData[]
+  total: number
+  page: number
+  limit: number
+}
+
+export interface DuplicateMember {
+  image_id: number
+  is_best: boolean
+  user_choice: string | null
+  image: ImageData
+}
+
+export interface DuplicateGroup {
+  id: number
+  match_type: string
+  created_at: string | null
+  members: DuplicateMember[]
+}
+
+export interface IndexerStatus {
+  running: boolean
+  phase: string
+  total: number
+  processed: number
+  errors: number
+  speed: number
+}
+
+export interface AppSettings {
+  ollama_model: string
+  ollama_url: string
+  ai_language: string
+  ai_quality_enabled: boolean
+  phash_threshold: number
+  source_dirs: string[]
+}
+
+export async function searchImages(params: {
+  q?: string
+  date_from?: string
+  date_to?: string
+  camera?: string
+  min_quality?: number
+  page?: number
+  limit?: number
+}): Promise<SearchResponse> {
+  const query = new URLSearchParams()
+  if (params.q) query.set('q', params.q)
+  if (params.date_from) query.set('date_from', params.date_from)
+  if (params.date_to) query.set('date_to', params.date_to)
+  if (params.camera) query.set('camera', params.camera)
+  if (params.min_quality != null) query.set('min_quality', String(params.min_quality))
+  if (params.page != null) query.set('page', String(params.page))
+  if (params.limit != null) query.set('limit', String(params.limit))
+  const res = await fetch(`${BASE}/search?${query}`)
+  if (!res.ok) throw new Error(`Search failed: ${res.status}`)
+  return res.json()
+}
+
+export async function getImageDetail(id: number): Promise<ImageData> {
+  const res = await fetch(`${BASE}/images/${id}`)
+  if (!res.ok) throw new Error(`Image fetch failed: ${res.status}`)
+  return res.json()
+}
+
+export function thumbUrl(id: number): string {
+  return `${BASE}/images/${id}/thumb`
+}
+
+export function fullUrl(id: number): string {
+  return `${BASE}/images/${id}/full`
+}
+
+export async function getDuplicates(params?: { page?: number; limit?: number }): Promise<DuplicateGroup[]> {
+  const query = new URLSearchParams()
+  if (params?.page != null) query.set('page', String(params.page))
+  if (params?.limit != null) query.set('limit', String(params.limit))
+  const res = await fetch(`${BASE}/duplicates?${query}`)
+  if (!res.ok) throw new Error(`Duplicates fetch failed: ${res.status}`)
+  return res.json()
+}
+
+export async function resolveDuplicate(groupId: number, keepId: number, rejectIds: number[]): Promise<void> {
+  const res = await fetch(`${BASE}/duplicates/${groupId}/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keep_id: keepId, reject_ids: rejectIds }),
+  })
+  if (!res.ok) throw new Error(`Resolve failed: ${res.status}`)
+}
+
+export async function getIndexerStatus(): Promise<IndexerStatus> {
+  const res = await fetch(`${BASE}/indexer/status`)
+  if (!res.ok) throw new Error(`Status fetch failed: ${res.status}`)
+  return res.json()
+}
+
+export async function startIndexer(): Promise<void> {
+  const res = await fetch(`${BASE}/indexer/start`, { method: 'POST' })
+  if (!res.ok) throw new Error(`Start failed: ${res.status}`)
+}
+
+export async function stopIndexer(): Promise<void> {
+  const res = await fetch(`${BASE}/indexer/stop`, { method: 'POST' })
+  if (!res.ok) throw new Error(`Stop failed: ${res.status}`)
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  const res = await fetch(`${BASE}/settings`)
+  if (!res.ok) throw new Error(`Settings fetch failed: ${res.status}`)
+  return res.json()
+}
+
+export async function updateSettings(settings: Partial<AppSettings>): Promise<AppSettings> {
+  const res = await fetch(`${BASE}/settings`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  })
+  if (!res.ok) throw new Error(`Settings update failed: ${res.status}`)
+  return res.json()
+}
