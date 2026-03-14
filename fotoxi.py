@@ -4,34 +4,14 @@ from __future__ import annotations
 import asyncio
 
 import uvicorn
-from fastapi import FastAPI
-
-from backend.config import Config
-
-
-def create_app(config: Config | None = None) -> FastAPI:
-    if config is None:
-        config = Config()
-
-    config.ensure_dirs()
-
-    app = FastAPI(title="Fotoxi", version="0.1.0")
-    app.state.config = config
-
-    return app
 
 
 async def main() -> None:
-    config = Config()
-    app = create_app(config)
+    from backend.main import create_app
 
-    server_config = uvicorn.Config(
-        app,
-        host=config.server_host,
-        port=config.server_port,
-        log_level="info",
-    )
-    server = uvicorn.Server(server_config)
+    app = await create_app()
+    config = uvicorn.Config(app, host="127.0.0.1", port=8000, log_level="info")
+    server = uvicorn.Server(config)
     await server.serve()
 
 
