@@ -4,7 +4,7 @@
 
 Local photo and video management tool. Indexes media from OneDrive, Google Drive, iCloud Drive and local folders. Creates a searchable metadata database with EXIF data, perceptual hashes, and optional AI descriptions via Ollama. Detects and helps resolve duplicates.
 
-[Suomeksi / Finnish](#suomeksi-)
+[Suomeksi / Finnish](README.fi.md)
 
 ## What is Fotoxi good for?
 
@@ -157,57 +157,3 @@ alembic upgrade head
 
 MIT
 
----
-
-## Suomeksi 🇫🇮
-
-# Fotoxi
-
-> **foto** (valokuva) + **ξ** (ksi, kreikan kirjain — tuntematon, löydettävä)
-
-Paikallinen valokuvien ja videoiden hallintatyokalu. Indeksoi median OneDrivestä, Google Drivestä, iCloud Drivestä ja paikallisista kansioista. Luo haettavan metatietokannan EXIF-tiedoilla, visuaalisilla sormenjäljillä ja valinnaisilla tekoälykuvauksilla. Tunnistaa ja auttaa hallitsemaan duplikaatteja.
-
-### Mihin Fotoxi sopii?
-
-- Valokuvakirjastojen yhdistäminen useista pilvipalveluista ja laitteista
-- Duplikaattien löytäminen ja poistaminen puhelimen varmuuskopioista
-- Vuosien aikana kertyneiden kuvakaappausten, WhatsApp-kuvien ja sarjakuvausten siivoaminen
-- Haettavan indeksin rakentaminen suurelle kuvakokoelmalle
-- Median hallinta ilman tietojen lähettämistä kolmansille osapuolille
-
-### Ominaisuudet
-
-- **Monikansio-indeksointi** — OneDrive, Google Drive, iCloud Drive, paikalliset kansiot
-- **EXIF-metatiedot** — Päivämäärä, kamera, GPS, aukko, ISO, valotusaika, polttoväli
-- **Duplikaattitunnistus** — Visuaalinen sormenjälki (pHash) + sarjakuvaustunnistus
-- **Duplikaattien hallinta** — Rinnakkaisvertailu älykkäillä ehdotuksilla
-- **Tekoälykuvaukset** — Valinnainen paikallinen Ollama-näkömalli (LLaVA ym.)
-- **Kokotekstihaku** — SQLite FTS5 kuvauksista, tageista ja tiedostonimistä
-- **Pilvioptiomointi** — macOS Files On-Demand, automaattinen lataus ja vapautus
-- **Web-käyttöliittymä** — React SPA tummalla teemalla
-- **Komentorivi** — Kaikki toiminnot CLI:n kautta
-- **Tietokantamigraatiot** — Alembic skeemamuutoksiin
-
-### Pikaopas
-
-```bash
-git clone https://github.com/trotor/fotoxi.git
-cd fotoxi
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-cd frontend && npm install && npm run build && cd ..
-python fotoxi.py
-# Avaa http://localhost:8000
-```
-
-### Komentorivi
-
-```bash
-python fotoxi.py                    # Käynnistä web-käyttöliittymä
-python fotoxi.py add <kansio>       # Lisää lähdekansio
-python fotoxi.py folders            # Listaa kansiot
-python fotoxi.py index              # Aja koko indeksointi
-python fotoxi.py status             # Tietokannan tila
-python fotoxi.py duplicates         # Näytä duplikaattiryhmät
-python fotoxi.py backup             # Luo varmuuskopio
-```

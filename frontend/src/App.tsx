@@ -25,6 +25,7 @@ export default function App() {
         <div className="min-h-screen bg-gray-950 text-gray-100">
           <nav className="bg-gray-900 border-b border-gray-700 px-4 py-3">
             <div className="max-w-7xl mx-auto flex items-center gap-2">
+              <img src="/favicon.svg" alt="Fotoxi" className="w-7 h-7" />
               <span className="text-white font-bold text-lg mr-4">Fotoxi</span>
               <NavLink to="/search" className={navLinkClass}>Haku</NavLink>
               <NavLink to="/duplicates" className={navLinkClass}>Duplikaatit</NavLink>
