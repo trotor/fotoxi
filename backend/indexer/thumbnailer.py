@@ -27,7 +27,10 @@ def generate_thumbnail(source: Path, thumbs_dir: Path, image_id: int) -> Optiona
         thumbs_dir.mkdir(parents=True, exist_ok=True)
         thumb_path = thumbs_dir / f"{image_id}.jpg"
 
+        from PIL import ImageOps
         with Image.open(source) as img:
+            # Fix EXIF orientation (rotated/flipped images)
+            img = ImageOps.exif_transpose(img)
             img.thumbnail((300, 300))
             img = img.convert("RGB")
             img.save(thumb_path, format="JPEG", quality=85)

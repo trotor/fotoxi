@@ -309,6 +309,42 @@ async def cmd_duplicates(args: argparse.Namespace) -> None:
     await engine.dispose()
 
 
+async def cmd_rebuild_thumbs(args: argparse.Namespace) -> None:
+    from sqlalchemy import select
+    from backend.db.models import Image
+    from backend.indexer.thumbnailer import generate_thumbnail
+
+    engine, session_factory, config = await _get_session_and_config()
+    thumbs_dir = Path(config.thumbs_dir)
+
+    async with session_factory() as session:
+        result = await session.execute(
+            select(Image).where(Image.status.notin_(["missing", "error"]))
+        )
+        images = result.scalars().all()
+
+    total = len(images)
+    print(f"Rebuilding thumbnails for {total} images (with EXIF orientation fix)...")
+
+    done = 0
+    errors = 0
+    for img in images:
+        path = Path(img.file_path)
+        if path.exists():
+            result = generate_thumbnail(path, thumbs_dir, img.id)
+            if result:
+                done += 1
+            else:
+                errors += 1
+        else:
+            errors += 1
+        if (done + errors) % 100 == 0:
+            print(f"\r  {done + errors}/{total} ({done} ok, {errors} errors)", end="", flush=True)
+
+    print(f"\nDone! {done} thumbnails rebuilt, {errors} errors.")
+    await engine.dispose()
+
+
 def cmd_backup(args: argparse.Namespace) -> None:
     import shutil
     from datetime import datetime
@@ -377,6 +413,9 @@ def main():
     # migrate
     subparsers.add_parser("migrate", help="Run database migrations")
 
+    # rebuild-thumbs
+    subparsers.add_parser("rebuild-thumbs", help="Rebuild all thumbnails (fixes orientation)")
+
     args = parser.parse_args()
 
     if args.command is None:
@@ -403,6 +442,8 @@ def main():
         cmd_backup(args)
     elif args.command == "migrate":
         cmd_migrate(args)
+    elif args.command == "rebuild-thumbs":
+        asyncio.run(cmd_rebuild_thumbs(args))
     else:
         parser.print_help()
 
