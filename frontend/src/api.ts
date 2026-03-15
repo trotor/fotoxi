@@ -65,6 +65,8 @@ export interface IndexerStatus {
   errors: number
   speed: number
   current_file: string
+  current_source_dir?: string
+  completed_source_dirs?: string[]
   db_summary?: DbSummary
 }
 
@@ -83,6 +85,7 @@ export async function searchImages(params: {
   date_to?: string
   camera?: string
   min_quality?: number
+  status?: string
   page?: number
   limit?: number
 }): Promise<SearchResponse> {
@@ -92,6 +95,7 @@ export async function searchImages(params: {
   if (params.date_to) query.set('date_to', params.date_to)
   if (params.camera) query.set('camera', params.camera)
   if (params.min_quality != null) query.set('min_quality', String(params.min_quality))
+  if (params.status) query.set('status', params.status)
   if (params.page != null) query.set('page', String(params.page))
   if (params.limit != null) query.set('limit', String(params.limit))
   const res = await fetch(`${BASE}/images?${query}`)

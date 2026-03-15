@@ -129,7 +129,7 @@ export default function Indexing() {
   const phaseLabel = PHASE_LABELS[status.phase] ?? status.phase
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-5xl">
       {/* Status card */}
       <div className="bg-gray-900 rounded-lg p-5 space-y-4">
         <div className="flex items-center justify-between">
@@ -258,12 +258,22 @@ export default function Indexing() {
           <p className="text-gray-500 text-sm">Ladataan...</p>
         ) : (
           <ul className="space-y-2">
-            {sourceDirs.map(dir => (
+            {sourceDirs.map(dir => {
+              const isScanning = status.running && status.current_source_dir === dir
+              const isDone = status.completed_source_dirs?.includes(dir)
+              return (
               <li
                 key={dir}
-                className="flex items-center justify-between bg-gray-800 rounded px-3 py-2 text-sm"
+                className={`flex items-center justify-between rounded px-3 py-2 text-sm transition-colors ${
+                  isScanning ? 'bg-blue-900/40 border border-blue-700' : isDone ? 'bg-green-900/20 border border-green-900' : 'bg-gray-800'
+                }`}
               >
-                <span className="text-gray-300 truncate font-mono text-xs">{dir}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  {isScanning && <span className="text-blue-400 animate-pulse flex-shrink-0">...</span>}
+                  {isDone && <span className="text-green-400 flex-shrink-0">OK</span>}
+                  {!isScanning && !isDone && <span className="text-gray-600 flex-shrink-0">--</span>}
+                  <span className="text-gray-300 truncate font-mono text-xs">{dir}</span>
+                </div>
                 <button
                   onClick={() => handleRemoveDir(dir)}
                   className="ml-3 text-gray-500 hover:text-red-400 transition-colors text-xs flex-shrink-0"
@@ -271,7 +281,8 @@ export default function Indexing() {
                   Poista
                 </button>
               </li>
-            ))}
+              )
+            })}
             {sourceDirs.length === 0 && (
               <li className="text-gray-500 text-sm">Ei kansioita.</li>
             )}

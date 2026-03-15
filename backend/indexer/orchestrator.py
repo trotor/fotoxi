@@ -35,6 +35,8 @@ class IndexerState:
     errors: int = 0
     speed: float = 0.0  # items per second
     current_file: str = ""  # file currently being processed
+    current_source_dir: str = ""  # source dir being scanned
+    completed_source_dirs: list[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -45,6 +47,8 @@ class IndexerState:
             "errors": self.errors,
             "speed": self.speed,
             "current_file": self.current_file,
+            "current_source_dir": self.current_source_dir,
+            "completed_source_dirs": self.completed_source_dirs,
         }
 
 
@@ -78,12 +82,16 @@ class IndexerOrchestrator:
         self.state.total = 0
         self.state.processed = 0
         self.state.errors = 0
+        self.state.current_source_dir = ""
+        self.state.completed_source_dirs = []
         self._notify()
 
         # Collect all paths found on disk across all source directories
         found_paths: set[str] = set()
 
         for source_dir in self.config.source_dirs:
+            self.state.current_source_dir = source_dir
+            self._notify()
             for file_path in scan_directory(source_dir, exclude_patterns=self.config.exclude_patterns):
                 await asyncio.sleep(0)  # yield to event loop for stop checks
                 if self._stop_event.is_set():
@@ -138,6 +146,11 @@ class IndexerOrchestrator:
 
                 self.state.processed += 1
                 self._notify()
+
+            self.state.completed_source_dirs.append(source_dir)
+            self._notify()
+
+        self.state.current_source_dir = ""
 
         # Mark files that are in DB but no longer on disk as "missing"
         async with self.session_factory() as session:

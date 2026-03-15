@@ -173,11 +173,13 @@ export default function Search() {
   const [dateTo, setDateTo] = useState('')
   const [camera, setCamera] = useState('')
   const [minQuality, setMinQuality] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [activeFilters, setActiveFilters] = useState({
     dateFrom: '',
     dateTo: '',
     camera: '',
     minQuality: '',
+    status: '',
   })
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null)
   const [showScrollTop, setShowScrollTop] = useState(false)
@@ -199,6 +201,7 @@ export default function Search() {
         date_to: activeFilters.dateTo || undefined,
         camera: activeFilters.camera || undefined,
         min_quality: activeFilters.minQuality ? Number(activeFilters.minQuality) : undefined,
+        status: activeFilters.status || undefined,
         page: pageParam,
         limit: PAGE_SIZE,
       }),
@@ -237,8 +240,14 @@ export default function Search() {
   }, [query])
 
   const handleFilter = useCallback(() => {
-    setActiveFilters({ dateFrom, dateTo, camera, minQuality })
-  }, [dateFrom, dateTo, camera, minQuality])
+    setActiveFilters({ dateFrom, dateTo, camera, minQuality, status: statusFilter })
+  }, [dateFrom, dateTo, camera, minQuality, statusFilter])
+
+  const handleStatusFilter = useCallback((s: string) => {
+    const newStatus = statusFilter === s ? '' : s
+    setStatusFilter(newStatus)
+    setActiveFilters(prev => ({ ...prev, status: newStatus }))
+  }, [statusFilter])
 
   const allImages = data?.pages.flatMap(p => p.images) ?? []
   const total = data?.pages[0]?.total ?? 0
@@ -274,6 +283,32 @@ export default function Search() {
         onMinQuality={setMinQuality}
         onFilter={handleFilter}
       />
+
+      {/* Quick status filters */}
+      <div className="flex flex-wrap gap-2 mt-2 mb-2">
+        {[
+          { key: '', label: 'Kaikki', color: 'gray' },
+          { key: 'indexed', label: 'Indeksoitu', color: 'gray' },
+          { key: 'kept', label: 'Sailytetyt', color: 'green' },
+          { key: 'rejected', label: 'Hylatyt', color: 'red' },
+          { key: 'pending', label: 'Odottavat', color: 'yellow' },
+        ].map(f => (
+          <button
+            key={f.key}
+            onClick={() => handleStatusFilter(f.key)}
+            className={`text-xs px-3 py-1 rounded transition-colors ${
+              activeFilters.status === f.key
+                ? f.color === 'green' ? 'bg-green-700 text-white'
+                : f.color === 'red' ? 'bg-red-700 text-white'
+                : f.color === 'yellow' ? 'bg-yellow-700 text-white'
+                : 'bg-blue-700 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
 
       {isLoading && (
         <div className="text-center py-12 text-gray-400">Ladataan...</div>
