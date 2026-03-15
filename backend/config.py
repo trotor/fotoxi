@@ -27,6 +27,7 @@ class Config:
     ollama_concurrency: int = 1
     server_host: str = "127.0.0.1"
     server_port: int = 8000
+    auto_process_on_start: bool = False
 
     def ensure_dirs(self) -> None:
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)

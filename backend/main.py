@@ -110,6 +110,32 @@ async def create_app(config: Optional[Config] = None) -> FastAPI:
     import asyncio as _asyncio
     _asyncio.create_task(_pull_ollama_model())
 
+    # Auto-start metadata processing if enabled
+    if config.auto_process_on_start:
+        async def _auto_process():
+            import logging as _log
+            _log.getLogger(__name__).info("Auto-starting metadata processing...")
+            await asyncio.sleep(2)  # Let server start first
+            orchestrator._stop_event.clear()
+            orchestrator.state.running = True
+            orchestrator._notify()
+            try:
+                await orchestrator.process_metadata()
+                if not orchestrator._stop_event.is_set():
+                    await orchestrator.process_ai()
+                if not orchestrator._stop_event.is_set():
+                    await orchestrator.group_duplicates()
+                orchestrator.state.phase = "complete"
+            except Exception as exc:
+                import logging as _log2
+                _log2.getLogger(__name__).error("Auto-process error: %s", exc)
+                orchestrator.state.phase = "error"
+            finally:
+                orchestrator.state.running = False
+                orchestrator._notify()
+
+        _asyncio.create_task(_auto_process())
+
     # Include routers
     from backend.api.routes import router
     from backend.api.websocket import ws_router

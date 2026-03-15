@@ -218,18 +218,13 @@ class IndexerOrchestrator:
             return
 
         thumbs_dir = Path(self.config.thumbs_dir)
-        concurrency = max(self.config.thread_pool_size, 5)  # At least 5 concurrent
+        concurrency = max(self.config.thread_pool_size, 15)  # 15 concurrent for cloud prefetch
         start_time = time.monotonic()
         loop = asyncio.get_event_loop()
-        semaphore = asyncio.Semaphore(concurrency)
 
         async def _process_one(image: Image) -> None:
             if self._stop_event.is_set():
                 return
-
-            async with semaphore:
-                if self._stop_event.is_set():
-                    return
 
                 image_id = image.id
                 file_path = Path(image.file_path)
@@ -307,8 +302,35 @@ class IndexerOrchestrator:
                 self.state.speed = total_done / elapsed if elapsed > 0 else 0.0
                 self._notify()
 
-        # Process all images concurrently (semaphore limits parallelism)
-        await asyncio.gather(*[_process_one(img) for img in pending], return_exceptions=True)
+        # Producer-consumer with bounded queue for prefetching
+        queue: asyncio.Queue = asyncio.Queue(maxsize=concurrency * 2)
+        producer_done = asyncio.Event()
+
+        async def producer():
+            for img in pending:
+                if self._stop_event.is_set():
+                    break
+                await queue.put(img)
+            producer_done.set()
+
+        async def worker():
+            while True:
+                if self._stop_event.is_set():
+                    return
+                try:
+                    img = await asyncio.wait_for(queue.get(), timeout=0.5)
+                except asyncio.TimeoutError:
+                    if producer_done.is_set() and queue.empty():
+                        return
+                    continue
+                await _process_one(img)
+
+        # Launch producer and workers concurrently
+        producer_task = asyncio.create_task(producer())
+        worker_tasks = [asyncio.create_task(worker()) for _ in range(concurrency)]
+        # Wait for all workers to finish (producer will finish first)
+        await producer_task
+        await asyncio.gather(*worker_tasks, return_exceptions=True)
 
     # ------------------------------------------------------------------
     # Phase 3: AI analysis

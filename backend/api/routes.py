@@ -515,6 +515,7 @@ class SettingsUpdate(BaseModel):
     server_host: Optional[str] = None
     server_port: Optional[int] = None
     exclude_patterns: Optional[List[str]] = None
+    auto_process_on_start: Optional[bool] = None
 
 
 @router.get("/settings")
@@ -613,7 +614,7 @@ async def _save_settings_to_db(request: Request) -> None:
     persist_keys = [
         "source_dirs", "ollama_model", "ollama_url", "ai_language",
         "ai_quality_enabled", "phash_threshold", "burst_time_window",
-        "ollama_concurrency", "exclude_patterns",
+        "ollama_concurrency", "exclude_patterns", "auto_process_on_start",
     ]
     config_dict = dataclasses.asdict(config)
 
