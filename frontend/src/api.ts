@@ -89,6 +89,7 @@ export async function searchImages(params: {
   min_quality?: number
   status?: string
   exclude?: string
+  folder?: string
   page?: number
   limit?: number
 }): Promise<SearchResponse> {
@@ -100,6 +101,7 @@ export async function searchImages(params: {
   if (params.min_quality != null) query.set('min_quality', String(params.min_quality))
   if (params.status) query.set('status', params.status)
   if (params.exclude) query.set('exclude', params.exclude)
+  if (params.folder) query.set('folder', params.folder)
   if (params.page != null) query.set('page', String(params.page))
   if (params.limit != null) query.set('limit', String(params.limit))
   const res = await fetch(`${BASE}/images?${query}`)
@@ -188,6 +190,19 @@ export interface CloudFolder {
 export async function getCloudFolders(): Promise<CloudFolder[]> {
   const res = await fetch(`${BASE}/cloud-folders`)
   if (!res.ok) throw new Error(`Cloud folders fetch failed: ${res.status}`)
+  return res.json()
+}
+
+export interface FolderInfo {
+  path: string
+  short: string
+  count: number
+  depth: number
+}
+
+export async function getImageFolders(): Promise<FolderInfo[]> {
+  const res = await fetch(`${BASE}/folders`)
+  if (!res.ok) throw new Error(`Folders fetch failed: ${res.status}`)
   return res.json()
 }
 

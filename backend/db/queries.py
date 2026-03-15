@@ -19,6 +19,7 @@ async def search_images(
     min_quality: Optional[float] = None,
     status: Optional[str] = None,
     exclude_statuses: Optional[list[str]] = None,
+    folder: Optional[str] = None,
     sort: str = "created_at",
     order: str = "desc",
     page: int = 1,
@@ -56,6 +57,10 @@ async def search_images(
         stmt = stmt.where(Image.status.notin_(list(all_excludes)))
     else:
         stmt = stmt.where(Image.status.notin_(["missing", "error"]))
+
+    # Folder filter (prefix match on file_path)
+    if folder:
+        stmt = stmt.where(Image.file_path.startswith(folder))
 
     # Full-text search via FTS5
     if q:

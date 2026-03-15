@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImageData } from '../api'
-import { searchImages, thumbUrl, fullUrl, updateImageStatus } from '../api'
+import { searchImages, thumbUrl, fullUrl, updateImageStatus, getImageFolders } from '../api'
 import FilterBar from '../components/FilterBar'
 
 const PAGE_SIZE = 40
@@ -211,12 +211,15 @@ export default function Search() {
   const [camera, setCamera] = useState('')
   const [minQuality, setMinQuality] = useState('')
   const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(new Set(['rejected', 'pending']))
+  const [folderFilter, setFolderFilter] = useState('')
+  const [showFolderPicker, setShowFolderPicker] = useState(false)
   const [activeFilters, setActiveFilters] = useState({
     dateFrom: '',
     dateTo: '',
     camera: '',
     minQuality: '',
     exclude: 'rejected,pending',
+    folder: '',
   })
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null)
   const [showScrollTop, setShowScrollTop] = useState(false)
@@ -239,6 +242,7 @@ export default function Search() {
         camera: activeFilters.camera || undefined,
         min_quality: activeFilters.minQuality ? Number(activeFilters.minQuality) : undefined,
         exclude: activeFilters.exclude || undefined,
+        folder: activeFilters.folder || undefined,
         page: pageParam,
         limit: PAGE_SIZE,
       }),
@@ -277,8 +281,20 @@ export default function Search() {
   }, [query])
 
   const handleFilter = useCallback(() => {
-    setActiveFilters({ dateFrom, dateTo, camera, minQuality, exclude: Array.from(excludeStatuses).join(',') })
-  }, [dateFrom, dateTo, camera, minQuality, excludeStatuses])
+    setActiveFilters({ dateFrom, dateTo, camera, minQuality, exclude: Array.from(excludeStatuses).join(','), folder: folderFilter })
+  }, [dateFrom, dateTo, camera, minQuality, excludeStatuses, folderFilter])
+
+  const { data: folders } = useQuery({
+    queryKey: ['image-folders'],
+    queryFn: getImageFolders,
+  })
+
+  const handleFolderSelect = useCallback((path: string) => {
+    const newFolder = folderFilter === path ? '' : path
+    setFolderFilter(newFolder)
+    setShowFolderPicker(false)
+    setActiveFilters(f => ({ ...f, folder: newFolder }))
+  }, [folderFilter])
 
   const toggleExclude = useCallback((s: string) => {
     setExcludeStatuses(prev => {
@@ -360,6 +376,50 @@ export default function Search() {
           )
         })}
       </div>
+
+      {/* Folder filter */}
+      <div className="flex items-center gap-2 mb-2">
+        <button
+          onClick={() => setShowFolderPicker(!showFolderPicker)}
+          className={`text-xs px-3 py-1 rounded border transition-colors ${
+            folderFilter
+              ? 'bg-purple-800 text-purple-100 border-purple-600'
+              : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500'
+          }`}
+        >
+          {folderFilter ? `Kansio: .../${folderFilter.split('/').slice(-2).join('/')}` : 'Valitse kansio'}
+        </button>
+        {folderFilter && (
+          <button
+            onClick={() => handleFolderSelect('')}
+            className="text-xs text-gray-500 hover:text-gray-300"
+          >
+            Tyhjenna
+          </button>
+        )}
+      </div>
+      {showFolderPicker && folders && (
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 mb-3 max-h-64 overflow-y-auto">
+          {folders
+            .filter(f => f.depth <= 4)
+            .map(f => (
+              <button
+                key={f.path}
+                onClick={() => handleFolderSelect(f.path)}
+                className={`block w-full text-left px-2 py-1 rounded text-xs transition-colors ${
+                  folderFilter === f.path
+                    ? 'bg-purple-800 text-purple-100'
+                    : 'text-gray-300 hover:bg-gray-800'
+                }`}
+                style={{ paddingLeft: `${(f.depth - 1) * 16 + 8}px` }}
+              >
+                <span className="text-gray-500">{f.depth > 1 ? '/' : ''}</span>
+                {f.short.split('/').pop()}
+                <span className="text-gray-600 ml-2">({f.count})</span>
+              </button>
+            ))}
+        </div>
+      )}
 
       {isLoading && (
         <div className="text-center py-12 text-gray-400">Ladataan...</div>

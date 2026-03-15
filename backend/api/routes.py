@@ -78,6 +78,7 @@ async def list_images(
     min_quality: Optional[float] = None,
     status: Optional[str] = None,
     exclude: Optional[str] = None,
+    folder: Optional[str] = None,
     sort: str = "created_at",
     order: str = "desc",
     page: int = 1,
@@ -95,6 +96,7 @@ async def list_images(
             min_quality=min_quality,
             status=status,
             exclude_statuses=exclude_list,
+            folder=folder,
             sort=sort,
             order=order,
             page=page,
@@ -142,6 +144,50 @@ async def get_image_full(request: Request, image_id: int) -> FileResponse:
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Image file not found on disk")
     return FileResponse(str(file_path))
+
+
+@router.get("/folders")
+async def list_image_folders(request: Request) -> List[Dict[str, Any]]:
+    """List all unique parent folders that contain indexed images, with counts."""
+    from sqlalchemy import select, func, case
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        result = await session.execute(
+            select(Image.file_path).where(Image.status.notin_(["missing", "error"]))
+        )
+        paths = [row[0] for row in result.all()]
+
+    # Build folder tree with counts
+    folder_counts: dict[str, int] = {}
+    for path in paths:
+        parent = str(Path(path).parent)
+        folder_counts[parent] = folder_counts.get(parent, 0) + 1
+
+    # Also aggregate into parent folders
+    aggregated: dict[str, int] = {}
+    for folder, count in folder_counts.items():
+        parts = folder.split("/")
+        # Build each level
+        for depth in range(1, len(parts) + 1):
+            ancestor = "/".join(parts[:depth])
+            if ancestor not in aggregated:
+                aggregated[ancestor] = 0
+            aggregated[ancestor] += count
+
+    # Filter to meaningful folders (at least under /Users, with images)
+    home = str(Path.home())
+    result_list = []
+    for folder, count in sorted(aggregated.items()):
+        if not folder.startswith(home):
+            continue
+        # Skip very top-level (/, /Users, /Users/name)
+        depth = len(folder.split("/")) - len(home.split("/"))
+        if depth < 1:
+            continue
+        short = folder.replace(home, "~")
+        result_list.append({"path": folder, "short": short, "count": count, "depth": depth})
+
+    return result_list
 
 
 class ImageStatusUpdate(BaseModel):
