@@ -242,9 +242,28 @@ export default function Indexing() {
         {/* Current phase stats (when running) */}
         {status.running && status.total > 0 && (
           <div className="flex items-center gap-4 text-xs text-gray-400 bg-gray-800/50 rounded p-2">
-            <span>Vaihe: {status.processed}/{status.total}</span>
+            <span>{phaseLabel}: {status.processed}/{status.total}</span>
             <span>Virheet: {status.errors}</span>
-            <span>{status.speed.toFixed(1)} kuvaa/s</span>
+            {status.speed > 0 && status.phase === 'metadata' && (
+              <span>{status.speed.toFixed(1)} kuvaa/s ({(1000 / status.speed).toFixed(0)} ms/kuva)</span>
+            )}
+            {status.speed > 0 && status.phase === 'ai_analysis' && (
+              <span>{status.speed.toFixed(2)} kuvaa/s ({(1 / status.speed).toFixed(1)} s/kuva)</span>
+            )}
+            {status.speed > 0 && status.phase !== 'metadata' && status.phase !== 'ai_analysis' && (
+              <span>{status.speed.toFixed(1)}/s</span>
+            )}
+            {status.total > 0 && status.speed > 0 && (
+              <span className="text-gray-500">
+                ~{(() => {
+                  const remaining = status.total - status.processed
+                  const secs = remaining / status.speed
+                  if (secs < 60) return `${Math.round(secs)}s`
+                  if (secs < 3600) return `${Math.round(secs / 60)} min`
+                  return `${(secs / 3600).toFixed(1)} h`
+                })()} jäljellä
+              </span>
+            )}
           </div>
         )}
       </div>
