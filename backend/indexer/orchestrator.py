@@ -218,16 +218,23 @@ class IndexerOrchestrator:
             return
 
         thumbs_dir = Path(self.config.thumbs_dir)
-        concurrency = max(self.config.thread_pool_size, 15)  # 15 concurrent for cloud prefetch
+        local_concurrency = max(self.config.thread_pool_size, 8)
+        cloud_concurrency = 5  # Cloud files download slowly, don't overwhelm
         start_time = time.monotonic()
         loop = asyncio.get_event_loop()
+        local_sem = asyncio.Semaphore(local_concurrency)
+        cloud_sem = asyncio.Semaphore(cloud_concurrency)
 
         async def _process_one(image: Image) -> None:
             if self._stop_event.is_set():
                 return
+            file_path = Path(image.file_path)
+            sem = cloud_sem if is_cloud_path(file_path) else local_sem
+            async with sem:
+                if self._stop_event.is_set():
+                    return
 
                 image_id = image.id
-                file_path = Path(image.file_path)
                 self.state.current_file = image.file_name
                 self.state.current_file_path = image.file_path
                 self.state.current_image_id = image.id
@@ -302,35 +309,13 @@ class IndexerOrchestrator:
                 self.state.speed = total_done / elapsed if elapsed > 0 else 0.0
                 self._notify()
 
-        # Producer-consumer with bounded queue for prefetching
-        queue: asyncio.Queue = asyncio.Queue(maxsize=concurrency * 2)
-        producer_done = asyncio.Event()
-
-        async def producer():
-            for img in pending:
-                if self._stop_event.is_set():
-                    break
-                await queue.put(img)
-            producer_done.set()
-
-        async def worker():
-            while True:
-                if self._stop_event.is_set():
-                    return
-                try:
-                    img = await asyncio.wait_for(queue.get(), timeout=0.5)
-                except asyncio.TimeoutError:
-                    if producer_done.is_set() and queue.empty():
-                        return
-                    continue
-                await _process_one(img)
-
-        # Launch producer and workers concurrently
-        producer_task = asyncio.create_task(producer())
-        worker_tasks = [asyncio.create_task(worker()) for _ in range(concurrency)]
-        # Wait for all workers to finish (producer will finish first)
-        await producer_task
-        await asyncio.gather(*worker_tasks, return_exceptions=True)
+        # Process in batches - semaphores handle actual concurrency
+        BATCH = 100
+        for i in range(0, len(pending), BATCH):
+            if self._stop_event.is_set():
+                break
+            batch = pending[i:i + BATCH]
+            await asyncio.gather(*[_process_one(img) for img in batch], return_exceptions=True)
 
     # ------------------------------------------------------------------
     # Phase 3: AI analysis
