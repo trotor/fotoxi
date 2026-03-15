@@ -313,6 +313,7 @@ async def cmd_rebuild_thumbs(args: argparse.Namespace) -> None:
     from sqlalchemy import select
     from backend.db.models import Image
     from backend.indexer.thumbnailer import generate_thumbnail
+    from backend.indexer.eviction import evict_file, is_cloud_path
 
     engine, session_factory, config = await _get_session_and_config()
     thumbs_dir = Path(config.thumbs_dir)
@@ -328,12 +329,17 @@ async def cmd_rebuild_thumbs(args: argparse.Namespace) -> None:
 
     done = 0
     errors = 0
+    evicted = 0
     for img in images:
         path = Path(img.file_path)
         if path.exists():
             result = generate_thumbnail(path, thumbs_dir, img.id)
             if result:
                 done += 1
+                # Evict cloud files back to cloud after thumbnail is generated
+                if is_cloud_path(path):
+                    await evict_file(path)
+                    evicted += 1
             else:
                 errors += 1
         else:
@@ -341,7 +347,7 @@ async def cmd_rebuild_thumbs(args: argparse.Namespace) -> None:
         if (done + errors) % 100 == 0:
             print(f"\r  {done + errors}/{total} ({done} ok, {errors} errors)", end="", flush=True)
 
-    print(f"\nDone! {done} thumbnails rebuilt, {errors} errors.")
+    print(f"\nDone! {done} thumbnails rebuilt, {errors} errors, {evicted} cloud files evicted.")
     await engine.dispose()
 
 

@@ -260,6 +260,10 @@ class IndexerOrchestrator:
 
                         await session.commit()
 
+                    # Evict cloud file after metadata extraction
+                    if is_cloud_path(file_path):
+                        await evict_file(file_path)
+
                     self.state.processed += 1
 
                 except Exception as exc:
