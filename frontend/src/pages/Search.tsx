@@ -406,28 +406,53 @@ export default function Search() {
           </button>
         )}
       </div>
-      {showFolderPicker && folders && (
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 mb-3 max-h-64 overflow-y-auto">
-          {folders
-            .filter(f => f.depth <= 4)
-            .map(f => (
-              <button
-                key={f.path}
-                onClick={() => handleFolderSelect(f.path)}
-                className={`block w-full text-left px-2 py-1 rounded text-xs transition-colors ${
-                  folderFilter === f.path
-                    ? 'bg-purple-800 text-purple-100'
-                    : 'text-gray-300 hover:bg-gray-800'
-                }`}
-                style={{ paddingLeft: `${(f.depth - 1) * 16 + 8}px` }}
-              >
-                <span className="text-gray-500">{f.depth > 1 ? '/' : ''}</span>
-                {f.short.split('/').pop()}
-                <span className="text-gray-600 ml-2">({f.count})</span>
-              </button>
-            ))}
-        </div>
-      )}
+      {showFolderPicker && folders && (() => {
+        // Build expandable tree - show top levels, expand when selected
+        const activePath = folderFilter || ''
+        const activeAncestors = new Set<string>()
+        if (activePath) {
+          const parts = activePath.split('/')
+          for (let i = 1; i <= parts.length; i++) {
+            activeAncestors.add(parts.slice(0, i).join('/'))
+          }
+        }
+
+        return (
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-2 mb-3 max-h-80 overflow-y-auto">
+            {folders
+              .filter(f => {
+                // Show: depth 1-2 always, deeper only if parent is in active path
+                if (f.depth <= 2) return true
+                const parent = f.path.split('/').slice(0, -1).join('/')
+                return activeAncestors.has(parent) || activeAncestors.has(f.path)
+              })
+              .map(f => {
+                const isActive = folderFilter === f.path
+                const isAncestor = activePath.startsWith(f.path + '/')
+                const hasChildren = folders.some(c => c.path.startsWith(f.path + '/') && c.path !== f.path)
+                const folderName = f.short.split('/').pop() || f.short
+                return (
+                  <button
+                    key={f.path}
+                    onClick={() => handleFolderSelect(f.path)}
+                    className={`block w-full text-left px-2 py-1 rounded text-xs transition-colors ${
+                      isActive
+                        ? 'bg-purple-800 text-purple-100'
+                        : isAncestor
+                        ? 'text-purple-300'
+                        : 'text-gray-300 hover:bg-gray-800'
+                    }`}
+                    style={{ paddingLeft: `${(f.depth - 1) * 14 + 4}px` }}
+                  >
+                    <span className="text-gray-600 mr-1">{hasChildren ? (isActive || isAncestor ? 'v' : '>') : ' '}</span>
+                    {folderName}
+                    <span className="text-gray-600 ml-1">({f.count})</span>
+                  </button>
+                )
+              })}
+          </div>
+        )
+      })()}
 
       {isLoading && (
         <div className="text-center py-12 text-gray-400">Ladataan...</div>
