@@ -12,7 +12,7 @@ function formatBytes(b: number): string {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function DetailModal({ image, onClose, onStatusChange }: { image: ImageData; onClose: () => void; onStatusChange: (id: number, status: string) => void }) {
+function DetailModal({ image, onClose, onStatusChange, onFolderSelect }: { image: ImageData; onClose: () => void; onStatusChange: (id: number, status: string) => void; onFolderSelect: (folder: string) => void }) {
   const isRejected = image.status === 'rejected'
   return (
     <div
@@ -105,9 +105,13 @@ function DetailModal({ image, onClose, onStatusChange }: { image: ImageData; onC
             {image.file_path && (
               <>
                 <span className="text-gray-500">Sijainti</span>
-                <span className="text-gray-400 text-xs break-all">
+                <button
+                  onClick={() => { onFolderSelect(image.file_path.split('/').slice(0, -1).join('/')); onClose() }}
+                  className="text-purple-400 text-xs break-all text-left hover:text-purple-300 hover:underline"
+                  title="Suodata taman kansion kuvat"
+                >
                   {image.file_path.split('/').slice(-4).join('/')}
-                </span>
+                </button>
               </>
             )}
             {image.ai_quality_score != null && (
@@ -157,7 +161,7 @@ const STATUS_BADGES: Record<string, { label: string; bg: string; text: string } 
   error: { label: 'Virhe', bg: 'bg-red-900', text: 'text-red-300' },
 }
 
-function ImageCard({ image, onClick, onStatusChange }: { image: ImageData; onClick: () => void; onStatusChange: (id: number, status: string) => void }) {
+function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: ImageData; onClick: () => void; onStatusChange: (id: number, status: string) => void; onFolderSelect: (folder: string) => void }) {
   const badge = STATUS_BADGES[image.status]
   const isRejected = image.status === 'rejected'
   return (
@@ -189,14 +193,18 @@ function ImageCard({ image, onClick, onStatusChange }: { image: ImageData; onCli
         {isRejected ? '+' : 'x'}
       </button>
       {/* Info overlay - only bottom part */}
-      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
         {image.exif_date && (
-          <p className="text-gray-300 text-xs">{image.exif_date.slice(0, 10)}</p>
+          <p className="text-gray-300 text-xs pointer-events-none">{image.exif_date.slice(0, 10)}</p>
         )}
-        {(image.exif_camera_make || image.exif_camera_model) && (
-          <p className="text-gray-400 text-xs truncate">
-            {[image.exif_camera_make, image.exif_camera_model].filter(Boolean).join(' ')}
-          </p>
+        {image.file_path && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onFolderSelect(image.file_path.split('/').slice(0, -1).join('/')) }}
+            className="text-purple-400 text-xs truncate block w-full text-left hover:text-purple-300"
+            title="Nayta taman kansion kuvat"
+          >
+            {image.file_path.split('/').slice(-3, -1).join('/')}
+          </button>
         )}
       </div>
     </div>
@@ -432,7 +440,7 @@ export default function Search() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-4">
             {allImages.map(img => (
-              <ImageCard key={img.id} image={img} onClick={() => setSelectedImage(img)} onStatusChange={handleStatusChange} />
+              <ImageCard key={img.id} image={img} onClick={() => setSelectedImage(img)} onStatusChange={handleStatusChange} onFolderSelect={handleFolderSelect} />
             ))}
           </div>
 
@@ -466,7 +474,7 @@ export default function Search() {
       )}
 
       {selectedImage && (
-        <DetailModal image={selectedImage} onClose={() => setSelectedImage(null)} onStatusChange={handleStatusChange} />
+        <DetailModal image={selectedImage} onClose={() => setSelectedImage(null)} onStatusChange={handleStatusChange} onFolderSelect={handleFolderSelect} />
       )}
     </div>
   )
