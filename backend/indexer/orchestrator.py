@@ -323,12 +323,13 @@ class IndexerOrchestrator:
             logger.info("Marked pending images as indexed (no AI)")
             return
 
-        # Images where phash is not null and status is still "pending"
+        # Images with metadata but without AI description
         async with self.session_factory() as session:
             result = await session.execute(
                 select(Image).where(
                     Image.phash.is_not(None),
-                    Image.status == "pending",
+                    Image.ai_description.is_(None),
+                    Image.status.in_(["pending", "indexed", "kept"]),
                 )
             )
             candidates = result.scalars().all()
@@ -538,8 +539,9 @@ class IndexerOrchestrator:
     # ------------------------------------------------------------------
 
     async def run_full(self) -> None:
-        """Run all indexing phases sequentially."""
-        self._stop_event.clear()  # Always reset stop flag on new run
+        """Run all indexing phases. AI runs after metadata, or in parallel if
+        there are already-indexed images without AI descriptions."""
+        self._stop_event.clear()
         self.state.running = True
         self.state.phase = "starting"
         self._notify()
@@ -550,12 +552,42 @@ class IndexerOrchestrator:
                 self.state.phase = "idle"
                 return
 
-            await self.process_metadata()
-            if self._stop_event.is_set():
-                self.state.phase = "idle"
-                return
+            # Check if there are images needing AI (already indexed but no description)
+            has_ai_work = False
+            async with self.session_factory() as session:
+                result = await session.execute(
+                    select(Image.id).where(
+                        Image.ai_description.is_(None),
+                        Image.phash.is_not(None),
+                        Image.status.in_(["indexed", "kept"]),
+                    ).limit(1)
+                )
+                has_ai_work = result.scalar_one_or_none() is not None
 
-            await self.process_ai()
+            # Check if there are pending images needing metadata
+            has_metadata_work = False
+            async with self.session_factory() as session:
+                result = await session.execute(
+                    select(Image.id).where(Image.status == "pending").limit(1)
+                )
+                has_metadata_work = result.scalar_one_or_none() is not None
+
+            if has_metadata_work and has_ai_work:
+                # Run both in parallel
+                logger.info("run_full: running metadata and AI in parallel")
+                await asyncio.gather(
+                    self.process_metadata(),
+                    self.process_ai(),
+                    return_exceptions=True,
+                )
+            else:
+                if has_metadata_work:
+                    await self.process_metadata()
+                if self._stop_event.is_set():
+                    self.state.phase = "idle"
+                    return
+                await self.process_ai()
+
             if self._stop_event.is_set():
                 self.state.phase = "idle"
                 return

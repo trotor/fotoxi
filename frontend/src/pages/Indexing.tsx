@@ -231,6 +231,7 @@ export default function Indexing() {
               <div className="flex flex-wrap gap-4 text-xs text-gray-500 px-1">
                 <span>Indeksoitu: <span className="text-gray-300">{db.indexed}</span></span>
                 <span>Säilytetty: <span className="text-blue-300">{db.kept}</span></span>
+                <span>AI-kuvaus: <span className="text-green-300">{db.ai_done}</span>{db.ai_missing > 0 && <span className="text-yellow-400"> / puuttuu {db.ai_missing}</span>}</span>
                 <span>Puuttuvat: <span className="text-gray-400">{db.missing}</span></span>
                 <span>Virheet: <span className="text-red-400">{db.error}</span></span>
               </div>

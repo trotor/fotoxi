@@ -56,6 +56,8 @@ export interface DbSummary {
   error: number
   missing: number
   videos: number
+  ai_done: number
+  ai_missing: number
 }
 
 export interface IndexerStatus {

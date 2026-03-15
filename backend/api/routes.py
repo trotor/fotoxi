@@ -332,16 +332,33 @@ async def indexer_status(request: Request) -> Dict[str, Any]:
         )
         counts = dict(counts_result.all())
 
-    # Count videos
-    from backend.indexer.scanner import VIDEO_EXTENSIONS
-    video_exts_upper = [ext.upper().lstrip(".") for ext in VIDEO_EXTENSIONS]
-    video_result = await session.execute(
-        select(func.count(Image.id)).where(
-            Image.format.in_(video_exts_upper),
-            Image.status.notin_(["missing", "error"]),
+        # Count videos
+        from backend.indexer.scanner import VIDEO_EXTENSIONS
+        video_exts_upper = [ext.upper().lstrip(".") for ext in VIDEO_EXTENSIONS]
+        video_result = await session.execute(
+            select(func.count(Image.id)).where(
+                Image.format.in_(video_exts_upper),
+                Image.status.notin_(["missing", "error"]),
+            )
         )
-    )
-    video_count = video_result.scalar() or 0
+        video_count = video_result.scalar() or 0
+
+        # Count images with/without AI descriptions
+        ai_done_result = await session.execute(
+            select(func.count(Image.id)).where(
+                Image.ai_description.is_not(None),
+                Image.status.notin_(["missing", "error", "rejected"]),
+            )
+        )
+        ai_done = ai_done_result.scalar() or 0
+
+        ai_missing_result = await session.execute(
+            select(func.count(Image.id)).where(
+                Image.ai_description.is_(None),
+                Image.status.notin_(["missing", "error", "rejected", "pending"]),
+            )
+        )
+        ai_missing = ai_missing_result.scalar() or 0
 
     result["db_summary"] = {
         "total": sum(counts.values()),
@@ -352,6 +369,8 @@ async def indexer_status(request: Request) -> Dict[str, Any]:
         "error": counts.get("error", 0),
         "missing": counts.get("missing", 0),
         "videos": video_count,
+        "ai_done": ai_done,
+        "ai_missing": ai_missing,
     }
     return result
 
