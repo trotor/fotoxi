@@ -330,6 +330,17 @@ async def indexer_status(request: Request) -> Dict[str, Any]:
         )
         counts = dict(counts_result.all())
 
+    # Count videos
+    from backend.indexer.scanner import VIDEO_EXTENSIONS
+    video_exts_upper = [ext.upper().lstrip(".") for ext in VIDEO_EXTENSIONS]
+    video_result = await session.execute(
+        select(func.count(Image.id)).where(
+            Image.format.in_(video_exts_upper),
+            Image.status.notin_(["missing", "error"]),
+        )
+    )
+    video_count = video_result.scalar() or 0
+
     result["db_summary"] = {
         "total": sum(counts.values()),
         "pending": counts.get("pending", 0),
@@ -338,6 +349,7 @@ async def indexer_status(request: Request) -> Dict[str, Any]:
         "rejected": counts.get("rejected", 0),
         "error": counts.get("error", 0),
         "missing": counts.get("missing", 0),
+        "videos": video_count,
     }
     return result
 

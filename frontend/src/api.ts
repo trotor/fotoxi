@@ -55,6 +55,7 @@ export interface DbSummary {
   rejected: number
   error: number
   missing: number
+  videos: number
 }
 
 export interface IndexerStatus {

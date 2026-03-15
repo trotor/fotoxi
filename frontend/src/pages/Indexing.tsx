@@ -199,35 +199,39 @@ export default function Indexing() {
         {status.db_summary && (() => {
           const db = status.db_summary!
           const active = db.total - db.missing - db.rejected - db.error
+          const photos = active - db.videos
           return (
             <div className="space-y-3">
               {/* Main stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <div className="bg-gray-800 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-gray-100">{db.total}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Kuvia yhteensä</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Tiedostoja</p>
                 </div>
                 <div className="bg-green-900/30 rounded-lg p-3 text-center">
-                  <p className="text-2xl font-bold text-green-300">{active}</p>
-                  <p className="text-xs text-green-400 mt-0.5">Aktiivisia kuvia</p>
-                  <p className="text-xs text-gray-600">Indeksoitu + säilytetty</p>
+                  <p className="text-2xl font-bold text-green-300">{photos}</p>
+                  <p className="text-xs text-green-400 mt-0.5">Kuvia</p>
+                  <p className="text-xs text-gray-600">Aktiivisia</p>
+                </div>
+                <div className="bg-blue-900/30 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-blue-300">{db.videos}</p>
+                  <p className="text-xs text-blue-400 mt-0.5">Videoita</p>
                 </div>
                 <div className="bg-yellow-900/20 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-yellow-300">{db.pending}</p>
-                  <p className="text-xs text-yellow-400 mt-0.5">Odottaa käsittelyä</p>
-                  <p className="text-xs text-gray-600">Metadata/AI puuttuu</p>
+                  <p className="text-xs text-yellow-400 mt-0.5">Odottaa</p>
+                  <p className="text-xs text-gray-600">Käsittelemättä</p>
                 </div>
                 <div className="bg-red-900/20 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-red-300">{db.rejected}</p>
                   <p className="text-xs text-red-400 mt-0.5">Hylätty</p>
-                  <p className="text-xs text-gray-600">Duplikaatit + derivatiivit</p>
                 </div>
               </div>
               {/* Secondary stats */}
               <div className="flex flex-wrap gap-4 text-xs text-gray-500 px-1">
                 <span>Indeksoitu: <span className="text-gray-300">{db.indexed}</span></span>
                 <span>Säilytetty: <span className="text-blue-300">{db.kept}</span></span>
-                <span>Puuttuvat tiedostot: <span className="text-gray-400">{db.missing}</span></span>
+                <span>Puuttuvat: <span className="text-gray-400">{db.missing}</span></span>
                 <span>Virheet: <span className="text-red-400">{db.error}</span></span>
               </div>
             </div>
