@@ -162,7 +162,7 @@ function ImageCard({ image, onClick, onStatusChange }: { image: ImageData; onCli
   const isRejected = image.status === 'rejected'
   return (
     <div
-      className={`relative aspect-square bg-gray-800 rounded overflow-hidden cursor-pointer group ${isRejected ? 'opacity-40' : ''}`}
+      className={`relative aspect-square bg-gray-800 rounded overflow-hidden cursor-pointer group transition-transform duration-150 hover:scale-105 hover:z-10 ${isRejected ? 'opacity-40 hover:opacity-80' : ''}`}
       onClick={onClick}
     >
       <img
@@ -176,22 +176,20 @@ function ImageCard({ image, onClick, onStatusChange }: { image: ImageData; onCli
           {badge.label}
         </div>
       )}
-      {/* Quick reject/restore button - top right */}
+      {/* Quick reject/restore button - always visible on hover, large enough to click */}
       <button
         onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, isRejected ? 'indexed' : 'rejected') }}
-        className={`absolute top-1 right-1 w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity ${
+        className={`absolute top-1 right-1 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold opacity-0 group-hover:opacity-100 transition-all shadow-lg ${
           isRejected
-            ? 'bg-green-600 hover:bg-green-500 text-white'
-            : 'bg-red-700 hover:bg-red-600 text-white'
+            ? 'bg-green-500 hover:bg-green-400 text-white hover:scale-110'
+            : 'bg-red-600 hover:bg-red-500 text-white hover:scale-110'
         }`}
         title={isRejected ? 'Palauta' : 'Havita'}
       >
         {isRejected ? '+' : 'x'}
       </button>
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/70 transition-colors flex flex-col justify-end p-2 opacity-0 group-hover:opacity-100 pointer-events-none">
-        {image.ai_description && (
-          <p className="text-white text-xs line-clamp-2 mb-1">{image.ai_description}</p>
-        )}
+      {/* Info overlay - only bottom part */}
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
         {image.exif_date && (
           <p className="text-gray-300 text-xs">{image.exif_date.slice(0, 10)}</p>
         )}
