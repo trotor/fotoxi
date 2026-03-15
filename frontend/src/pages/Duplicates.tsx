@@ -46,7 +46,11 @@ export default function Duplicates() {
 
   const { data: groups = [], isLoading, isError } = useQuery({
     queryKey: ['duplicates'],
-    queryFn: () => getDuplicates({ limit: 200 }),
+    queryFn: async () => {
+      const all = await getDuplicates({ limit: 200 })
+      // Filter to only show groups with unresolved members
+      return all.filter(g => g.members.some(m => m.user_choice === null))
+    },
   })
 
   const resolveMutation = useMutation({
@@ -105,7 +109,10 @@ export default function Duplicates() {
             delete next[group.id]
             return next
           })
-          if (groupIndex < groups.length - 1) setGroupIndex(i => i + 1)
+          // Stay at same index - the resolved group will be filtered out
+          // on refetch, so the next group slides into this position
+          // Only decrement if we're at the end
+          setGroupIndex(i => Math.max(0, Math.min(i, groups.length - 2)))
         },
       }
     )
@@ -144,6 +151,13 @@ export default function Duplicates() {
     resolveAndNext(keepIds, rejectIds)
   }
 
+  /** Reject ALL images in this group */
+  function handleRejectAll() {
+    if (!group) return
+    const rejectIds = members.map(m => m.image_id)
+    resolveAndNext([], rejectIds)
+  }
+
   /** Keep ALL images in this group and mark as resolved */
   function handleKeepAll() {
     if (!group) return
@@ -176,41 +190,49 @@ export default function Duplicates() {
         <span>{members.length} kuvaa</span>
       </div>
 
-      {/* One-click actions - the main workflow */}
-      <div className="bg-gray-900 rounded-lg p-3 space-y-2">
-        <p className="text-xs text-gray-500 mb-2">Pikatoiminnot (valitse & vahvista yhdellä klikkauksella):</p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={handleKeepAll}
-            disabled={resolveMutation.isPending}
-            className="bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-gray-200 text-sm px-4 py-2 rounded transition-colors"
-          >
-            Säilytä kaikki & seuraava
-          </button>
-          <button
-            onClick={handleAutoConfirm}
-            disabled={resolveMutation.isPending}
-            className="bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-sm px-4 py-2 rounded transition-colors"
-          >
-            Säilytä suurin ({bestImg ? `${bestImg.file_name.slice(0, 25)}${bestImg.file_name.length > 25 ? '...' : ''} · ${(bestImg.file_size / 1024 / 1024).toFixed(1)} MB` : '?'}) & seuraava
-          </button>
+      {/* Default action - prominent */}
+      <button
+        onClick={handleAutoConfirm}
+        disabled={resolveMutation.isPending}
+        className="w-full bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-sm px-4 py-3 rounded-lg transition-colors font-medium"
+      >
+        {bestImg
+          ? `Säilytä suositeltu (${bestImg.file_name.slice(0, 30)}${bestImg.file_name.length > 30 ? '...' : ''} · ${(bestImg.file_size / 1024 / 1024).toFixed(1)} MB) & seuraava`
+          : 'Säilytä suositeltu & seuraava'}
+      </button>
 
-          {folders.length > 1 && folders.map(folder => {
-            const folderCount = members.filter(m => m.image && folderOf(m.image.file_path) === folder).length
-            const rejectCount = members.length - folderCount
-            return (
-              <button
-                key={folder}
-                onClick={() => handleKeepFolderConfirm(folder)}
-                disabled={resolveMutation.isPending || rejectCount === 0}
-                className="bg-blue-800 hover:bg-blue-700 disabled:opacity-40 text-blue-200 text-xs px-3 py-2 rounded transition-colors"
-                title={folder}
-              >
-                Säilytä .../{shortFolder(folder).split('/').pop()} (hylkää {rejectCount})
-              </button>
-            )
-          })}
-        </div>
+      {/* Other actions */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={handleKeepAll}
+          disabled={resolveMutation.isPending}
+          className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-300 text-xs px-3 py-1.5 rounded border border-gray-600 transition-colors"
+        >
+          Säilytä kaikki
+        </button>
+        <button
+          onClick={handleRejectAll}
+          disabled={resolveMutation.isPending}
+          className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-red-400 text-xs px-3 py-1.5 rounded border border-red-900 transition-colors"
+        >
+          Hävitä kaikki
+        </button>
+
+        {folders.length > 1 && folders.map(folder => {
+          const folderCount = members.filter(m => m.image && folderOf(m.image.file_path) === folder).length
+          const rejectCount = members.length - folderCount
+          return (
+            <button
+              key={folder}
+              onClick={() => handleKeepFolderConfirm(folder)}
+              disabled={resolveMutation.isPending || rejectCount === 0}
+              className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-blue-400 text-xs px-3 py-1.5 rounded border border-blue-900 transition-colors"
+              title={folder}
+            >
+              Säilytä .../{shortFolder(folder).split('/').pop()} (hylkää {rejectCount})
+            </button>
+          )
+        })}
       </div>
 
       {/* Manual mode hint */}
@@ -260,7 +282,7 @@ export default function Duplicates() {
               )}
               {isSuggested && !isRejected && (
                 <div className="absolute top-1 right-1 bg-green-600 text-white text-xs px-1.5 py-0.5 rounded">
-                  Suurin
+                  Suositeltu (suurin)
                 </div>
               )}
               {isDerivative && !isRejected && (

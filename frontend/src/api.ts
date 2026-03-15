@@ -47,6 +47,16 @@ export interface DuplicateGroup {
   members: DuplicateMember[]
 }
 
+export interface DbSummary {
+  total: number
+  pending: number
+  indexed: number
+  kept: number
+  rejected: number
+  error: number
+  missing: number
+}
+
 export interface IndexerStatus {
   running: boolean
   phase: string
@@ -55,6 +65,7 @@ export interface IndexerStatus {
   errors: number
   speed: number
   current_file: string
+  db_summary?: DbSummary
 }
 
 export interface AppSettings {

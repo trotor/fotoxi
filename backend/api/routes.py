@@ -243,8 +243,28 @@ async def resolve_duplicate(
 
 @router.get("/indexer/status")
 async def indexer_status(request: Request) -> Dict[str, Any]:
+    from sqlalchemy import select, func
     orchestrator = request.app.state.orchestrator
-    return orchestrator.state.to_dict()
+    result = orchestrator.state.to_dict()
+
+    # Add database-level summary
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        counts_result = await session.execute(
+            select(Image.status, func.count(Image.id)).group_by(Image.status)
+        )
+        counts = dict(counts_result.all())
+
+    result["db_summary"] = {
+        "total": sum(counts.values()),
+        "pending": counts.get("pending", 0),
+        "indexed": counts.get("indexed", 0),
+        "kept": counts.get("kept", 0),
+        "rejected": counts.get("rejected", 0),
+        "error": counts.get("error", 0),
+        "missing": counts.get("missing", 0),
+    }
+    return result
 
 
 @router.post("/indexer/start")
@@ -309,6 +329,10 @@ async def list_cloud_folders() -> List[Dict[str, str]]:
                 else:
                     label = name
                 result.append({"label": label, "path": str(entry)})
+    # iCloud Drive
+    icloud = Path.home() / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+    if icloud.is_dir():
+        result.append({"label": "iCloud Drive", "path": str(icloud)})
     # Also add ~/Pictures if it exists
     pictures = Path.home() / "Pictures"
     if pictures.is_dir():

@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from pathlib import Path
 
 
 async def cmd_serve(args: argparse.Namespace) -> None:
@@ -308,6 +309,34 @@ async def cmd_duplicates(args: argparse.Namespace) -> None:
     await engine.dispose()
 
 
+def cmd_backup(args: argparse.Namespace) -> None:
+    import shutil
+    from datetime import datetime
+    from backend.config import Config
+
+    config = Config()
+    db_path = config.db_path
+    if not Path(db_path).exists():
+        print(f"No database found at {db_path}")
+        sys.exit(1)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = f"{db_path}.backup_{timestamp}"
+    shutil.copy2(db_path, backup_path)
+    size_mb = Path(backup_path).stat().st_size / 1024 / 1024
+    print(f"Backup created: {backup_path} ({size_mb:.1f} MB)")
+
+
+def cmd_migrate(args: argparse.Namespace) -> None:
+    from alembic.config import Config as AlembicConfig
+    from alembic import command
+
+    alembic_cfg = AlembicConfig("alembic.ini")
+    print("Running database migrations...")
+    command.upgrade(alembic_cfg, "head")
+    print("Migrations complete.")
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="fotoxi",
@@ -342,6 +371,12 @@ def main():
     # duplicates
     subparsers.add_parser("duplicates", help="Show duplicate groups")
 
+    # backup
+    subparsers.add_parser("backup", help="Create database backup")
+
+    # migrate
+    subparsers.add_parser("migrate", help="Run database migrations")
+
     args = parser.parse_args()
 
     if args.command is None:
@@ -364,6 +399,10 @@ def main():
         asyncio.run(cmd_status(args))
     elif args.command == "duplicates":
         asyncio.run(cmd_duplicates(args))
+    elif args.command == "backup":
+        cmd_backup(args)
+    elif args.command == "migrate":
+        cmd_migrate(args)
     else:
         parser.print_help()
 

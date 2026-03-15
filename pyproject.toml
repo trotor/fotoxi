@@ -17,6 +17,8 @@ dependencies = [
     "Pillow>=11.0",
     "httpx>=0.28",
     "python-multipart>=0.0.18",
+    "pillow-heif>=0.18",
+    "alembic>=1.14",
 ]
 
 [project.optional-dependencies]

@@ -32,6 +32,23 @@ async def create_app(config: Optional[Config] = None) -> FastAPI:
 
     engine, session_factory = await create_engine_and_init(config.db_path)
 
+    # Run Alembic migrations automatically on startup
+    try:
+        from alembic.config import Config as AlembicConfig
+        from alembic import command
+        import os
+        alembic_ini = Path(__file__).parent.parent / "alembic.ini"
+        if alembic_ini.exists():
+            alembic_cfg = AlembicConfig(str(alembic_ini))
+            # Temporarily change to project root for alembic to find script_location
+            old_cwd = os.getcwd()
+            os.chdir(str(alembic_ini.parent))
+            command.upgrade(alembic_cfg, "head")
+            os.chdir(old_cwd)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Alembic migration skipped: %s", exc)
+
     # Load persisted settings from DB
     await _load_persisted_settings(config, session_factory)
 
