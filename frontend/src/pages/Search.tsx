@@ -218,6 +218,8 @@ export default function Search() {
   const [dateTo, setDateTo] = useState('')
   const [camera, setCamera] = useState('')
   const [minQuality, setMinQuality] = useState('')
+  const [sortBy, setSortBy] = useState('exif_date')
+  const [sortOrder, setSortOrder] = useState('desc')
   const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(new Set(['rejected', 'pending']))
   const [folderFilter, setFolderFilter] = useState('')
   const [showFolderPicker, setShowFolderPicker] = useState(false)
@@ -241,7 +243,7 @@ export default function Search() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['search', submittedQuery, activeFilters],
+    queryKey: ['search', submittedQuery, activeFilters, sortBy, sortOrder],
     queryFn: ({ pageParam = 1 }) =>
       searchImages({
         q: submittedQuery || undefined,
@@ -251,6 +253,8 @@ export default function Search() {
         min_quality: activeFilters.minQuality ? Number(activeFilters.minQuality) : undefined,
         exclude: activeFilters.exclude || undefined,
         folder: activeFilters.folder || undefined,
+        sort: sortBy,
+        order: sortOrder,
         page: pageParam,
         limit: PAGE_SIZE,
       }),
@@ -376,6 +380,38 @@ export default function Search() {
         onFilter={handleFilter}
       />
 
+      {/* Sort options */}
+      <div className="flex flex-wrap items-center gap-2 mt-2 mb-1">
+        <span className="text-xs text-gray-500">Jarjesta:</span>
+        {[
+          { key: 'exif_date', label: 'Paivamaara' },
+          { key: 'file_name', label: 'Nimi' },
+          { key: 'file_path', label: 'Kansio' },
+          { key: 'file_size', label: 'Koko' },
+          { key: 'phash', label: 'Samankaltaisuus' },
+          { key: 'created_at', label: 'Lisaysaika' },
+        ].map(s => (
+          <button
+            key={s.key}
+            onClick={() => {
+              if (sortBy === s.key) {
+                setSortOrder(o => o === 'desc' ? 'asc' : 'desc')
+              } else {
+                setSortBy(s.key)
+                setSortOrder(s.key === 'file_name' || s.key === 'file_path' || s.key === 'phash' ? 'asc' : 'desc')
+              }
+            }}
+            className={`text-xs px-2 py-1 rounded transition-colors ${
+              sortBy === s.key
+                ? 'bg-gray-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            {s.label} {sortBy === s.key ? (sortOrder === 'desc' ? 'v' : '^') : ''}
+          </button>
+        ))}
+      </div>
+
       {/* Status toggle filters - click to show/hide */}
       <div className="flex flex-wrap items-center gap-2 mt-2 mb-2">
         <span className="text-xs text-gray-500">Nayta:</span>
@@ -467,7 +503,9 @@ export default function Search() {
                     >
                       {folderName}
                     </button>
-                    <span className="text-gray-600 text-xs px-2 flex-shrink-0">{f.count}</span>
+                    <span className="text-gray-600 text-xs px-2 flex-shrink-0">
+                      {f.indexed < f.count ? `${f.indexed}/${f.count}` : f.count}
+                    </span>
                   </div>
                 )
               })}

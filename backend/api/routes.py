@@ -148,44 +148,48 @@ async def get_image_full(request: Request, image_id: int) -> FileResponse:
 
 @router.get("/folders")
 async def list_image_folders(request: Request) -> List[Dict[str, Any]]:
-    """List all unique parent folders that contain indexed images, with counts."""
-    from sqlalchemy import select, func, case
+    """List all unique parent folders that contain images, with total and indexed counts."""
     session_factory = request.app.state.session_factory
     async with session_factory() as session:
         result = await session.execute(
-            select(Image.file_path).where(Image.status.notin_(["missing", "error"]))
+            select(Image.file_path, Image.status).where(Image.status.notin_(["missing", "error"]))
         )
-        paths = [row[0] for row in result.all()]
+        rows = result.all()
 
-    # Build folder tree with counts
-    folder_counts: dict[str, int] = {}
-    for path in paths:
+    # Build folder tree with total and indexed counts
+    folder_total: dict[str, int] = {}
+    folder_indexed: dict[str, int] = {}
+    for path, status in rows:
         parent = str(Path(path).parent)
-        folder_counts[parent] = folder_counts.get(parent, 0) + 1
+        folder_total[parent] = folder_total.get(parent, 0) + 1
+        if status in ("indexed", "kept"):
+            folder_indexed[parent] = folder_indexed.get(parent, 0) + 1
 
-    # Also aggregate into parent folders
-    aggregated: dict[str, int] = {}
-    for folder, count in folder_counts.items():
+    # Aggregate into parent folders
+    agg_total: dict[str, int] = {}
+    agg_indexed: dict[str, int] = {}
+    for folder, count in folder_total.items():
         parts = folder.split("/")
-        # Build each level
         for depth in range(1, len(parts) + 1):
             ancestor = "/".join(parts[:depth])
-            if ancestor not in aggregated:
-                aggregated[ancestor] = 0
-            aggregated[ancestor] += count
+            agg_total[ancestor] = agg_total.get(ancestor, 0) + count
+            agg_indexed[ancestor] = agg_indexed.get(ancestor, 0) + folder_indexed.get(folder, 0)
 
-    # Filter to meaningful folders (at least under /Users, with images)
     home = str(Path.home())
     result_list = []
-    for folder, count in sorted(aggregated.items()):
+    for folder, count in sorted(agg_total.items()):
         if not folder.startswith(home):
             continue
-        # Skip very top-level (/, /Users, /Users/name)
         depth = len(folder.split("/")) - len(home.split("/"))
         if depth < 1:
             continue
         short = folder.replace(home, "~")
-        result_list.append({"path": folder, "short": short, "count": count, "depth": depth})
+        indexed = agg_indexed.get(folder, 0)
+        result_list.append({
+            "path": folder, "short": short,
+            "count": count, "indexed": indexed,
+            "depth": depth,
+        })
 
     return result_list
 

@@ -90,6 +90,8 @@ export async function searchImages(params: {
   status?: string
   exclude?: string
   folder?: string
+  sort?: string
+  order?: string
   page?: number
   limit?: number
 }): Promise<SearchResponse> {
@@ -102,6 +104,8 @@ export async function searchImages(params: {
   if (params.status) query.set('status', params.status)
   if (params.exclude) query.set('exclude', params.exclude)
   if (params.folder) query.set('folder', params.folder)
+  if (params.sort) query.set('sort', params.sort)
+  if (params.order) query.set('order', params.order)
   if (params.page != null) query.set('page', String(params.page))
   if (params.limit != null) query.set('limit', String(params.limit))
   const res = await fetch(`${BASE}/images?${query}`)
@@ -197,6 +201,7 @@ export interface FolderInfo {
   path: string
   short: string
   count: number
+  indexed: number
   depth: number
 }
 
