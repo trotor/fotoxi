@@ -18,6 +18,7 @@ async def search_images(
     camera: Optional[str] = None,
     min_quality: Optional[float] = None,
     status: Optional[str] = None,
+    exclude_statuses: Optional[list[str]] = None,
     sort: str = "created_at",
     order: str = "desc",
     page: int = 1,
@@ -49,6 +50,10 @@ async def search_images(
     # Status filter
     if status:
         stmt = stmt.where(Image.status == status)
+    elif exclude_statuses:
+        # Always exclude missing/error plus user-specified
+        all_excludes = set(exclude_statuses) | {"missing", "error"}
+        stmt = stmt.where(Image.status.notin_(list(all_excludes)))
     else:
         stmt = stmt.where(Image.status.notin_(["missing", "error"]))
 

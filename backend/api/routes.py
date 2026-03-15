@@ -77,12 +77,14 @@ async def list_images(
     camera: Optional[str] = None,
     min_quality: Optional[float] = None,
     status: Optional[str] = None,
+    exclude: Optional[str] = None,
     sort: str = "created_at",
     order: str = "desc",
     page: int = 1,
     limit: int = 20,
 ) -> Dict[str, Any]:
     session_factory = request.app.state.session_factory
+    exclude_list = [s.strip() for s in exclude.split(",")] if exclude else None
     async with session_factory() as session:
         images, total = await search_images(
             session=session,
@@ -92,6 +94,7 @@ async def list_images(
             camera=camera,
             min_quality=min_quality,
             status=status,
+            exclude_statuses=exclude_list,
             sort=sort,
             order=order,
             page=page,

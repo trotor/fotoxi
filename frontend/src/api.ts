@@ -86,6 +86,7 @@ export async function searchImages(params: {
   camera?: string
   min_quality?: number
   status?: string
+  exclude?: string
   page?: number
   limit?: number
 }): Promise<SearchResponse> {
@@ -96,6 +97,7 @@ export async function searchImages(params: {
   if (params.camera) query.set('camera', params.camera)
   if (params.min_quality != null) query.set('min_quality', String(params.min_quality))
   if (params.status) query.set('status', params.status)
+  if (params.exclude) query.set('exclude', params.exclude)
   if (params.page != null) query.set('page', String(params.page))
   if (params.limit != null) query.set('limit', String(params.limit))
   const res = await fetch(`${BASE}/images?${query}`)

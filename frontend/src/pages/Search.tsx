@@ -173,13 +173,13 @@ export default function Search() {
   const [dateTo, setDateTo] = useState('')
   const [camera, setCamera] = useState('')
   const [minQuality, setMinQuality] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(new Set(['rejected', 'pending']))
   const [activeFilters, setActiveFilters] = useState({
     dateFrom: '',
     dateTo: '',
     camera: '',
     minQuality: '',
-    status: '',
+    exclude: 'rejected,pending',
   })
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null)
   const [showScrollTop, setShowScrollTop] = useState(false)
@@ -201,7 +201,7 @@ export default function Search() {
         date_to: activeFilters.dateTo || undefined,
         camera: activeFilters.camera || undefined,
         min_quality: activeFilters.minQuality ? Number(activeFilters.minQuality) : undefined,
-        status: activeFilters.status || undefined,
+        exclude: activeFilters.exclude || undefined,
         page: pageParam,
         limit: PAGE_SIZE,
       }),
@@ -240,14 +240,22 @@ export default function Search() {
   }, [query])
 
   const handleFilter = useCallback(() => {
-    setActiveFilters({ dateFrom, dateTo, camera, minQuality, status: statusFilter })
-  }, [dateFrom, dateTo, camera, minQuality, statusFilter])
+    setActiveFilters({ dateFrom, dateTo, camera, minQuality, exclude: Array.from(excludeStatuses).join(',') })
+  }, [dateFrom, dateTo, camera, minQuality, excludeStatuses])
 
-  const handleStatusFilter = useCallback((s: string) => {
-    const newStatus = statusFilter === s ? '' : s
-    setStatusFilter(newStatus)
-    setActiveFilters(prev => ({ ...prev, status: newStatus }))
-  }, [statusFilter])
+  const toggleExclude = useCallback((s: string) => {
+    setExcludeStatuses(prev => {
+      const next = new Set(prev)
+      if (next.has(s)) {
+        next.delete(s)
+      } else {
+        next.add(s)
+      }
+      const excludeStr = Array.from(next).join(',')
+      setActiveFilters(f => ({ ...f, exclude: excludeStr }))
+      return next
+    })
+  }, [])
 
   const allImages = data?.pages.flatMap(p => p.images) ?? []
   const total = data?.pages[0]?.total ?? 0
@@ -284,30 +292,30 @@ export default function Search() {
         onFilter={handleFilter}
       />
 
-      {/* Quick status filters */}
-      <div className="flex flex-wrap gap-2 mt-2 mb-2">
+      {/* Status toggle filters - click to show/hide */}
+      <div className="flex flex-wrap items-center gap-2 mt-2 mb-2">
+        <span className="text-xs text-gray-500">Nayta:</span>
         {[
-          { key: '', label: 'Kaikki', color: 'gray' },
-          { key: 'indexed', label: 'Indeksoitu', color: 'gray' },
-          { key: 'kept', label: 'Sailytetyt', color: 'green' },
-          { key: 'rejected', label: 'Hylatyt', color: 'red' },
-          { key: 'pending', label: 'Odottavat', color: 'yellow' },
-        ].map(f => (
-          <button
-            key={f.key}
-            onClick={() => handleStatusFilter(f.key)}
-            className={`text-xs px-3 py-1 rounded transition-colors ${
-              activeFilters.status === f.key
-                ? f.color === 'green' ? 'bg-green-700 text-white'
-                : f.color === 'red' ? 'bg-red-700 text-white'
-                : f.color === 'yellow' ? 'bg-yellow-700 text-white'
-                : 'bg-blue-700 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+          { key: 'indexed', label: 'Indeksoitu', activeColor: 'bg-gray-600 text-gray-100', },
+          { key: 'kept', label: 'Sailytetyt', activeColor: 'bg-green-700 text-white' },
+          { key: 'rejected', label: 'Hylatyt', activeColor: 'bg-red-800 text-red-100' },
+          { key: 'pending', label: 'Odottavat', activeColor: 'bg-yellow-700 text-yellow-100' },
+        ].map(f => {
+          const isVisible = !excludeStatuses.has(f.key)
+          return (
+            <button
+              key={f.key}
+              onClick={() => toggleExclude(f.key)}
+              className={`text-xs px-3 py-1 rounded transition-colors border ${
+                isVisible
+                  ? `${f.activeColor} border-transparent`
+                  : 'bg-gray-900 text-gray-600 border-gray-700 line-through'
+              }`}
+            >
+              {f.label}
+            </button>
+          )
+        })}
       </div>
 
       {isLoading && (
