@@ -35,6 +35,8 @@ class IndexerState:
     errors: int = 0
     speed: float = 0.0  # items per second
     current_file: str = ""  # file currently being processed
+    current_file_path: str = ""  # full path of current file
+    current_image_id: int = 0  # DB id for thumbnail
     current_source_dir: str = ""  # source dir being scanned
     completed_source_dirs: list[str] = field(default_factory=list)
 
@@ -47,6 +49,8 @@ class IndexerState:
             "errors": self.errors,
             "speed": self.speed,
             "current_file": self.current_file,
+            "current_file_path": self.current_file_path,
+            "current_image_id": self.current_image_id,
             "current_source_dir": self.current_source_dir,
             "completed_source_dirs": self.completed_source_dirs,
         }
@@ -208,6 +212,8 @@ class IndexerOrchestrator:
                 image_id = image.id
                 file_path = Path(image.file_path)
                 self.state.current_file = image.file_name
+                self.state.current_file_path = image.file_path
+                self.state.current_image_id = image.id
 
                 try:
                     # Run blocking calls in thread pool

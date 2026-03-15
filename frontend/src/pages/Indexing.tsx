@@ -71,8 +71,9 @@ export default function Indexing() {
         try {
           const data = JSON.parse(e.data)
           // Backend sends state dict directly (has 'running' field)
+          // WS updates don't include db_summary, so merge with existing
           if ('running' in data) {
-            setStatus(data)
+            setStatus(prev => ({ ...prev, ...data, db_summary: data.db_summary ?? prev.db_summary }))
           }
         } catch {
           // ignore parse errors
@@ -173,9 +174,24 @@ export default function Indexing() {
             </div>
           )}
           {status.current_file && status.running && (
-            <p className="text-xs text-gray-500 truncate mt-1">
-              {status.current_file}
-            </p>
+            <div className="flex items-center gap-3 mt-2 bg-gray-800/50 rounded p-2">
+              {status.current_image_id ? (
+                <img
+                  src={`/api/images/${status.current_image_id}/thumb`}
+                  alt=""
+                  className="w-12 h-12 rounded object-cover flex-shrink-0 bg-gray-700"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              ) : (
+                <div className="w-12 h-12 rounded bg-gray-700 flex-shrink-0 animate-pulse" />
+              )}
+              <div className="min-w-0">
+                <p className="text-xs text-gray-300 truncate">{status.current_file}</p>
+                <p className="text-xs text-gray-600 truncate">
+                  {status.current_file_path?.split('/').slice(-4, -1).join('/') || ''}
+                </p>
+              </div>
+            </div>
           )}
         </div>
 

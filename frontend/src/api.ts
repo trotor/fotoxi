@@ -65,6 +65,8 @@ export interface IndexerStatus {
   errors: number
   speed: number
   current_file: string
+  current_file_path?: string
+  current_image_id?: number
   current_source_dir?: string
   completed_source_dirs?: string[]
   db_summary?: DbSummary
