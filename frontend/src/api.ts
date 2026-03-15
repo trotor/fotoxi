@@ -75,6 +75,7 @@ export interface IndexerStatus {
   current_image_id?: number
   current_source_dir?: string
   completed_source_dirs?: string[]
+  recent_log?: string[]
   ai_total?: number
   ai_processed?: number
   ai_speed?: number

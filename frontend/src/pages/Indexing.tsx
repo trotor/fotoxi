@@ -328,6 +328,26 @@ export default function Indexing() {
         )}
       </div>
 
+      {/* Live log */}
+      {status.running && status.recent_log && status.recent_log.length > 0 && (
+        <div className="bg-gray-900 rounded-lg p-3">
+          <p className="text-xs text-gray-500 mb-1">Loki:</p>
+          <div className="font-mono text-xs text-gray-400 space-y-0.5 max-h-40 overflow-y-auto">
+            {status.recent_log.slice().reverse().map((line, i) => (
+              <div key={i} className={
+                line.startsWith('✓') ? 'text-green-400' :
+                line.startsWith('↓') ? 'text-blue-400' :
+                line.startsWith('↑') ? 'text-yellow-400' :
+                line.startsWith('✗') ? 'text-red-400' :
+                'text-gray-500'
+              }>
+                {line}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Source folders */}
       <div className="bg-gray-900 rounded-lg p-5 space-y-4">
         <h2 className="font-medium text-gray-100">Lähdekansiot</h2>

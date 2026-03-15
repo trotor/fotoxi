@@ -44,6 +44,12 @@ class IndexerState:
     ai_processed: int = 0
     ai_speed: float = 0.0
     ai_current_file: str = ""
+    recent_log: list[str] = field(default_factory=list)  # Last N log entries
+
+    def log(self, msg: str):
+        self.recent_log.append(msg)
+        if len(self.recent_log) > 20:
+            self.recent_log = self.recent_log[-20:]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -62,6 +68,7 @@ class IndexerState:
             "ai_processed": self.ai_processed,
             "ai_speed": self.ai_speed,
             "ai_current_file": self.ai_current_file,
+            "recent_log": self.recent_log[-10:],
         }
 
 
@@ -241,6 +248,9 @@ class IndexerOrchestrator:
                 self.state.current_file = image.file_name
                 self.state.current_file_path = image.file_path
                 self.state.current_image_id = image.id
+                is_cloud = is_cloud_path(file_path)
+                size_mb = (image.file_size or 0) / 1024 / 1024
+                self.state.log(f"{'↓' if is_cloud else '→'} {image.file_name} ({size_mb:.1f} MB)")
 
                 try:
                     # Timeout: 120s for cloud files (download), 30s for local
@@ -292,10 +302,12 @@ class IndexerOrchestrator:
                         await session.commit()
 
                     # Evict cloud file after processing
-                    if is_cloud_path(file_path):
+                    if is_cloud:
                         await evict_file(file_path)
+                        self.state.log(f"↑ {image.file_name} evicted")
 
                     self.state.processed += 1
+                    self.state.log(f"✓ {image.file_name}")
 
                 except asyncio.TimeoutError:
                     logger.warning("process_metadata: timeout for %s (%.0f MB)", file_path, (image.file_size or 0) / 1024 / 1024)
