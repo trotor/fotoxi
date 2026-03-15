@@ -184,14 +184,27 @@ class IndexerOrchestrator:
     # Phase 2: process metadata
     # ------------------------------------------------------------------
 
+    def _process_one_image_sync(self, file_path: Path, thumbs_dir: Path, image_id: int) -> dict:
+        """Process a single image synchronously (runs in thread pool).
+        Returns dict with exif_data, hash_data, and success flag."""
+        result = {"exif_data": None, "hash_data": None, "error": None}
+        try:
+            # These all run in the same thread - no context switching overhead
+            result["exif_data"] = extract_exif(file_path)
+            result["hash_data"] = compute_hashes(file_path)
+            generate_thumbnail(file_path, thumbs_dir, image_id)
+        except Exception as exc:
+            result["error"] = str(exc)
+        return result
+
     async def process_metadata(self) -> None:
-        """Extract EXIF, compute hashes, generate thumbnails for pending images."""
+        """Extract EXIF, compute hashes, generate thumbnails for pending images.
+        Processes multiple images in parallel using a thread pool with prefetching."""
         self.state.phase = "metadata"
         self.state.processed = 0
         self.state.errors = 0
         self._notify()
 
-        # Load all pending images
         async with self.session_factory() as session:
             result = await session.execute(
                 select(Image).where(Image.status == "pending")
@@ -205,17 +218,17 @@ class IndexerOrchestrator:
             return
 
         thumbs_dir = Path(self.config.thumbs_dir)
-        thread_pool_size = self.config.thread_pool_size
-
+        concurrency = max(self.config.thread_pool_size, 5)  # At least 5 concurrent
         start_time = time.monotonic()
-
         loop = asyncio.get_event_loop()
+        semaphore = asyncio.Semaphore(concurrency)
 
-        with ThreadPoolExecutor(max_workers=thread_pool_size) as executor:
-            for image in pending:
-                await asyncio.sleep(0)  # yield to event loop for stop checks
+        async def _process_one(image: Image) -> None:
+            if self._stop_event.is_set():
+                return
+
+            async with semaphore:
                 if self._stop_event.is_set():
-                    logger.info("process_metadata: stop requested, aborting")
                     return
 
                 image_id = image.id
@@ -225,16 +238,18 @@ class IndexerOrchestrator:
                 self.state.current_image_id = image.id
 
                 try:
-                    # Run blocking calls in thread pool
-                    exif_data = await loop.run_in_executor(
-                        executor, extract_exif, file_path
+                    # Run EXIF + hash + thumbnail in thread pool (single thread per image)
+                    proc_result = await loop.run_in_executor(
+                        None,  # default executor
+                        self._process_one_image_sync,
+                        file_path, thumbs_dir, image_id,
                     )
-                    hash_data = await loop.run_in_executor(
-                        executor, compute_hashes, file_path
-                    )
-                    await loop.run_in_executor(
-                        executor, generate_thumbnail, file_path, thumbs_dir, image_id
-                    )
+
+                    if proc_result["error"]:
+                        raise Exception(proc_result["error"])
+
+                    exif_data = proc_result["exif_data"]
+                    hash_data = proc_result["hash_data"]
 
                     async with self.session_factory() as session:
                         result = await session.execute(
@@ -242,7 +257,7 @@ class IndexerOrchestrator:
                         )
                         img = result.scalar_one_or_none()
                         if img is None:
-                            continue
+                            return
 
                         if exif_data:
                             img.width = exif_data.get("width")
@@ -262,14 +277,12 @@ class IndexerOrchestrator:
                             img.phash = hash_data.get("phash")
                             img.dhash = hash_data.get("dhash")
 
-                        # Mark as indexed after successful metadata extraction
-                        img.status = "indexed"
                         import datetime as _dt
+                        img.status = "indexed"
                         img.indexed_at = _dt.datetime.now(_dt.timezone.utc)
-
                         await session.commit()
 
-                    # Evict cloud file after metadata extraction
+                    # Evict cloud file after processing
                     if is_cloud_path(file_path):
                         await evict_file(file_path)
 
@@ -293,6 +306,9 @@ class IndexerOrchestrator:
                 total_done = self.state.processed + self.state.errors
                 self.state.speed = total_done / elapsed if elapsed > 0 else 0.0
                 self._notify()
+
+        # Process all images concurrently (semaphore limits parallelism)
+        await asyncio.gather(*[_process_one(img) for img in pending], return_exceptions=True)
 
     # ------------------------------------------------------------------
     # Phase 3: AI analysis
