@@ -274,8 +274,13 @@ async def indexer_status(request: Request) -> Dict[str, Any]:
 async def indexer_start(request: Request) -> Dict[str, Any]:
     orchestrator = request.app.state.orchestrator
     if orchestrator.state.running:
-        raise HTTPException(status_code=409, detail="Indexer is already running")
-    asyncio.create_task(orchestrator.run_full())
+        # Double-check: if _task is done, reset state (stale running flag)
+        if hasattr(orchestrator, '_task') and orchestrator._task and orchestrator._task.done():
+            orchestrator.state.running = False
+        else:
+            raise HTTPException(status_code=409, detail="Indexer is already running")
+    task = asyncio.create_task(orchestrator.run_full())
+    orchestrator._task = task
     return {"status": "started"}
 
 
