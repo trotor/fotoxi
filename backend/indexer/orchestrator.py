@@ -217,6 +217,9 @@ class IndexerOrchestrator:
         if not pending:
             return
 
+        # Sort: small files first, large videos last (avoid blocking pipeline)
+        pending.sort(key=lambda img: img.file_size or 0)
+
         thumbs_dir = Path(self.config.thumbs_dir)
         local_concurrency = max(self.config.thread_pool_size, 8)
         cloud_concurrency = 5  # Cloud files download slowly, don't overwhelm
@@ -240,11 +243,15 @@ class IndexerOrchestrator:
                 self.state.current_image_id = image.id
 
                 try:
-                    # Run EXIF + hash + thumbnail in thread pool (single thread per image)
-                    proc_result = await loop.run_in_executor(
-                        None,  # default executor
-                        self._process_one_image_sync,
-                        file_path, thumbs_dir, image_id,
+                    # Timeout: 120s for cloud files (download), 30s for local
+                    timeout = 120.0 if is_cloud_path(file_path) else 30.0
+                    proc_result = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None,
+                            self._process_one_image_sync,
+                            file_path, thumbs_dir, image_id,
+                        ),
+                        timeout=timeout,
                     )
 
                     if proc_result["error"]:
@@ -289,6 +296,17 @@ class IndexerOrchestrator:
                         await evict_file(file_path)
 
                     self.state.processed += 1
+
+                except asyncio.TimeoutError:
+                    logger.warning("process_metadata: timeout for %s (%.0f MB)", file_path, (image.file_size or 0) / 1024 / 1024)
+                    self.state.errors += 1
+                    async with self.session_factory() as session:
+                        result = await session.execute(select(Image).where(Image.id == image_id))
+                        img = result.scalar_one_or_none()
+                        if img is not None:
+                            img.status = "error"
+                            img.error_message = "Timeout - file too large or slow to download"
+                            await session.commit()
 
                 except Exception as exc:
                     logger.error("process_metadata: error for %s: %s", file_path, exc)
