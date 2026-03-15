@@ -180,6 +180,11 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
           {badge.label}
         </div>
       )}
+      {image.format && ['MP4','MOV','AVI','MKV','WMV','FLV','WEBM','M4V','MPG','MPEG','3GP','MTS'].includes(image.format.toUpperCase()) && (
+        <div className="absolute bottom-1 left-1 bg-black/70 text-blue-300 text-xs px-1.5 py-0.5 rounded pointer-events-none">
+          Video
+        </div>
+      )}
       {/* Quick reject/restore button - always visible on hover, large enough to click */}
       <button
         onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, isRejected ? 'indexed' : 'rejected') }}

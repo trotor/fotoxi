@@ -18,7 +18,12 @@ def compute_hashes(path: Path) -> Optional[dict]:
     """Open an image and compute perceptual hashes.
 
     Returns a dict with "phash" and "dhash" as hex strings, or None on error.
+    Videos are skipped (return None).
     """
+    from backend.indexer.scanner import VIDEO_EXTENSIONS
+    if path.suffix.lower() in VIDEO_EXTENSIONS:
+        return None  # No perceptual hash for videos
+
     try:
         with Image.open(path) as img:
             ph = imagehash.phash(img)

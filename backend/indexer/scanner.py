@@ -6,6 +6,13 @@ IMAGE_EXTENSIONS = {
     ".tiff", ".tif", ".raw", ".cr2", ".nef", ".arw", ".dng",
 }
 
+VIDEO_EXTENSIONS = {
+    ".mp4", ".mov", ".avi", ".mkv", ".wmv", ".flv", ".webm",
+    ".m4v", ".mpg", ".mpeg", ".3gp", ".mts",
+}
+
+MEDIA_EXTENSIONS = IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+
 
 def scan_directory(directory: str | Path, exclude_patterns: list[str] | None = None) -> Iterator[Path]:
     """Recursively scan a directory and yield paths to image files.
@@ -24,7 +31,7 @@ def scan_directory(directory: str | Path, exclude_patterns: list[str] | None = N
         return
 
     for path in directory.rglob("*"):
-        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS:
+        if path.is_file() and path.suffix.lower() in MEDIA_EXTENSIONS:
             # Check if any parent folder matches exclude patterns
             if excludes and any(part in excludes for part in path.parts):
                 continue

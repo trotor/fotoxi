@@ -18,6 +18,7 @@ dependencies = [
     "httpx>=0.28",
     "python-multipart>=0.0.18",
     "pillow-heif>=0.18",
+    "opencv-python-headless>=4.10",
     "alembic>=1.14",
 ]
 

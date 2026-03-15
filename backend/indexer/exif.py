@@ -71,13 +71,19 @@ def _parse_date(tag) -> Optional[datetime]:
 
 
 def extract_exif(path: Path) -> Optional[dict]:
-    """Extract image dimensions, format, and EXIF metadata from an image file.
+    """Extract dimensions, format, and EXIF metadata from an image or video file.
 
     Returns None if the file does not exist or cannot be opened.
     """
+    from backend.indexer.scanner import VIDEO_EXTENSIONS
+
     if not path.exists():
         logger.warning("extract_exif: file does not exist: %s", path)
         return None
+
+    # Handle video files separately
+    if path.suffix.lower() in VIDEO_EXTENSIONS:
+        return _extract_video_metadata(path)
 
     # Get dimensions and format via Pillow
     try:
@@ -144,3 +150,34 @@ def extract_exif(path: Path) -> Optional[dict]:
         "exif_iso": iso,
         "exif_exposure": exposure,
     }
+
+
+def _extract_video_metadata(path: Path) -> Optional[dict]:
+    """Extract basic metadata from a video file using OpenCV."""
+    result = {
+        "width": None, "height": None, "format": path.suffix.upper().lstrip("."),
+        "exif_date": None, "exif_camera_make": None, "exif_camera_model": None,
+        "exif_gps_lat": None, "exif_gps_lon": None, "exif_focal_length": None,
+        "exif_aperture": None, "exif_iso": None, "exif_exposure": None,
+    }
+    try:
+        import cv2
+        cap = cv2.VideoCapture(str(path))
+        if not cap.isOpened():
+            return result
+        result["width"] = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        result["height"] = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.release()
+    except ImportError:
+        pass
+    except Exception as exc:
+        logger.warning("Video metadata extraction failed for %s: %s", path, exc)
+
+    # Try to get date from file modification time
+    try:
+        mtime = path.stat().st_mtime
+        result["exif_date"] = datetime.fromtimestamp(mtime)
+    except Exception:
+        pass
+
+    return result
