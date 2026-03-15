@@ -195,6 +195,36 @@ export default function Indexing() {
           )}
         </div>
 
+        {/* AI analysis progress (separate from metadata) */}
+        {status.running && (status.ai_total ?? 0) > 0 && (
+          <div className="bg-gray-900/50 rounded p-3 space-y-1 border border-purple-900/30">
+            <div className="flex justify-between text-xs text-gray-400">
+              <span>AI-analyysi: {status.ai_processed}/{status.ai_total}</span>
+              <span>{status.ai_total! > 0 ? Math.round((status.ai_processed ?? 0) / status.ai_total! * 100) : 0}%</span>
+            </div>
+            <ProgressBar value={status.ai_processed ?? 0} max={status.ai_total ?? 0} />
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              {(status.ai_speed ?? 0) > 0 && (
+                <>
+                  <span>{(1 / status.ai_speed!).toFixed(1)} s/kuva</span>
+                  <span className="text-gray-600">
+                    ~{(() => {
+                      const remaining = (status.ai_total ?? 0) - (status.ai_processed ?? 0)
+                      const secs = remaining / (status.ai_speed ?? 1)
+                      if (secs < 60) return `${Math.round(secs)}s`
+                      if (secs < 3600) return `${Math.round(secs / 60)} min`
+                      return `${(secs / 3600).toFixed(1)} h`
+                    })()} jäljellä
+                  </span>
+                </>
+              )}
+              {status.ai_current_file && (
+                <span className="truncate text-purple-400">{status.ai_current_file}</span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Database summary - always visible */}
         {status.db_summary && (() => {
           const db = status.db_summary!
@@ -232,9 +262,24 @@ export default function Indexing() {
                 <span>Indeksoitu: <span className="text-gray-300">{db.indexed}</span></span>
                 <span>Säilytetty: <span className="text-blue-300">{db.kept}</span></span>
                 <span>AI-kuvaus: <span className="text-green-300">{db.ai_done}</span>{db.ai_missing > 0 && <span className="text-yellow-400"> / puuttuu {db.ai_missing}</span>}</span>
+                <span>Videot: <span className="text-blue-300">{db.videos_indexed}</span>{db.videos_pending > 0 && <span className="text-yellow-400"> / odottaa {db.videos_pending}</span>}</span>
                 <span>Puuttuvat: <span className="text-gray-400">{db.missing}</span></span>
                 <span>Virheet: <span className="text-red-400">{db.error}</span></span>
               </div>
+              {/* Format breakdown */}
+              {db.formats && Object.keys(db.formats).length > 0 && (
+                <div className="flex flex-wrap gap-2 text-xs text-gray-500 px-1">
+                  <span className="text-gray-600">Tiedostotyypit:</span>
+                  {Object.entries(db.formats)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 12)
+                    .map(([fmt, cnt]) => (
+                      <span key={fmt} className="bg-gray-800 px-1.5 py-0.5 rounded text-gray-400">
+                        {fmt} <span className="text-gray-500">{cnt}</span>
+                      </span>
+                    ))}
+                </div>
+              )}
             </div>
           )
         })()}

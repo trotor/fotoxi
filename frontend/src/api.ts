@@ -56,8 +56,11 @@ export interface DbSummary {
   error: number
   missing: number
   videos: number
+  videos_pending: number
+  videos_indexed: number
   ai_done: number
   ai_missing: number
+  formats: Record<string, number>
 }
 
 export interface IndexerStatus {
@@ -72,6 +75,10 @@ export interface IndexerStatus {
   current_image_id?: number
   current_source_dir?: string
   completed_source_dirs?: string[]
+  ai_total?: number
+  ai_processed?: number
+  ai_speed?: number
+  ai_current_file?: string
   db_summary?: DbSummary
 }
 

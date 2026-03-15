@@ -360,6 +360,23 @@ async def indexer_status(request: Request) -> Dict[str, Any]:
         )
         ai_missing = ai_missing_result.scalar() or 0
 
+        # Format breakdown (top formats by count, excluding missing/error)
+        format_result = await session.execute(
+            select(Image.format, func.count(Image.id))
+            .where(Image.status.notin_(["missing", "error"]))
+            .group_by(Image.format)
+            .order_by(func.count(Image.id).desc())
+        )
+        format_counts = {(fmt or "?").upper(): cnt for fmt, cnt in format_result.all()}
+
+        # Status x media type breakdown
+        video_by_status_result = await session.execute(
+            select(Image.status, func.count(Image.id))
+            .where(Image.format.in_(video_exts_upper))
+            .group_by(Image.status)
+        )
+        video_by_status = dict(video_by_status_result.all())
+
     result["db_summary"] = {
         "total": sum(counts.values()),
         "pending": counts.get("pending", 0),
@@ -371,6 +388,9 @@ async def indexer_status(request: Request) -> Dict[str, Any]:
         "videos": video_count,
         "ai_done": ai_done,
         "ai_missing": ai_missing,
+        "formats": format_counts,
+        "videos_pending": video_by_status.get("pending", 0),
+        "videos_indexed": video_by_status.get("indexed", 0) + video_by_status.get("kept", 0),
     }
     return result
 

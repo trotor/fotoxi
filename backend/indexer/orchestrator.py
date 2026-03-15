@@ -39,6 +39,11 @@ class IndexerState:
     current_image_id: int = 0  # DB id for thumbnail
     current_source_dir: str = ""  # source dir being scanned
     completed_source_dirs: list[str] = field(default_factory=list)
+    # Separate AI progress (can run in parallel)
+    ai_total: int = 0
+    ai_processed: int = 0
+    ai_speed: float = 0.0
+    ai_current_file: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -53,6 +58,10 @@ class IndexerState:
             "current_image_id": self.current_image_id,
             "current_source_dir": self.current_source_dir,
             "completed_source_dirs": self.completed_source_dirs,
+            "ai_total": self.ai_total,
+            "ai_processed": self.ai_processed,
+            "ai_speed": self.ai_speed,
+            "ai_current_file": self.ai_current_file,
         }
 
 
@@ -302,8 +311,10 @@ class IndexerOrchestrator:
     async def process_ai(self) -> None:
         """Run AI analysis on images that have phash but are still pending."""
         self.state.phase = "ai_analysis"
-        self.state.processed = 0
-        self.state.errors = 0
+        self.state.ai_processed = 0
+        self.state.ai_total = 0
+        self.state.ai_speed = 0.0
+        self.state.ai_current_file = ""
         self._notify()
 
         # Check if Ollama is running before starting
@@ -334,7 +345,7 @@ class IndexerOrchestrator:
             )
             candidates = result.scalars().all()
 
-        self.state.total = len(candidates)
+        self.state.ai_total = len(candidates)
         self._notify()
 
         if not candidates:
@@ -350,7 +361,7 @@ class IndexerOrchestrator:
 
             image_id = image.id
             file_path = Path(image.file_path)
-            self.state.current_file = image.file_name
+            self.state.ai_current_file = image.file_name
 
             async with semaphore:
                 try:
@@ -393,11 +404,11 @@ class IndexerOrchestrator:
                     if is_cloud_path(file_path):
                         await evict_file(file_path)
 
-                    self.state.processed += 1
+                    self.state.ai_processed += 1
 
                 except Exception as exc:
                     logger.error("process_ai: error for %s: %s", file_path, exc)
-                    self.state.errors += 1
+                    self.state.ai_processed += 1  # count errors too for progress
 
                     async with self.session_factory() as session:
                         result = await session.execute(
@@ -410,8 +421,7 @@ class IndexerOrchestrator:
                             await session.commit()
 
                 elapsed = time.monotonic() - start_time
-                total_done = self.state.processed + self.state.errors
-                self.state.speed = total_done / elapsed if elapsed > 0 else 0.0
+                self.state.ai_speed = self.state.ai_processed / elapsed if elapsed > 0 else 0.0
                 self._notify()
 
         await asyncio.gather(*[_process_one(img) for img in candidates])
