@@ -2,23 +2,52 @@
 
 > **foto** (photo) + **ξ** (ksi, the Greek letter xi — the unknown, to be discovered)
 
-Local photo management and metadata database. Indexes photos from OneDrive, Google Drive, iCloud Drive and local folders. Creates a searchable metadata database with EXIF data, perceptual hashes, and optional AI descriptions via Ollama. Detects and helps resolve duplicates.
+Local photo and video management tool. Indexes media from OneDrive, Google Drive, iCloud Drive and local folders. Creates a searchable metadata database with EXIF data, perceptual hashes, and optional AI descriptions via Ollama. Detects and helps resolve duplicates.
 
 [Suomeksi / Finnish](#suomeksi-)
+
+## What is Fotoxi good for?
+
+**The problem:** You have thousands of photos and videos scattered across cloud services, phone backups, and local folders. Many are duplicates, some are blurry, and you can't find anything.
+
+**Typical workflow:**
+
+1. **Point Fotoxi at your photo folders** — OneDrive, Google Drive, local Pictures, phone backup folders. One click to add each source.
+2. **Let it index** — Fotoxi scans all folders recursively, extracts EXIF metadata (date, camera, GPS, settings), generates thumbnails, and computes visual fingerprints. Cloud files are downloaded temporarily and released back to cloud-only afterwards.
+3. **Browse and search** — Filter by date, camera, folder, or media type. Sort by date, name, size, or visual similarity. Infinite scroll through your entire collection.
+4. **Clean up duplicates** — Fotoxi finds visually similar images and burst shots. One-click "keep largest" resolves most groups instantly. You can also filter by folder to keep originals from a preferred location.
+5. **Reject unwanted files** — Mark images for deletion directly from the search grid. Review rejected items before permanent removal.
+6. **Optionally: AI descriptions** — Connect a local Ollama vision model (LLaVA, Moondream) to auto-generate descriptions and tags for full-text search.
+
+**Best for:**
+- Consolidating photo libraries from multiple cloud services and devices
+- Finding and removing duplicate photos from phone backup folders
+- Cleaning up years of accumulated screenshots, WhatsApp images, and burst shots
+- Building a searchable index of a large photo collection
+- Managing media without uploading anything to third-party services
+
+**Not designed for:**
+- Photo editing or RAW processing
+- Real-time photo organization (batch/offline workflow)
+- Multi-user or server deployment (single-user local tool)
 
 ## Features
 
 - **Multi-source indexing** — OneDrive, Google Drive, iCloud Drive, local folders
+- **Photos and videos** — JPEG, PNG, HEIC, RAW, MP4, MOV, AVI, MKV and more
 - **EXIF extraction** — Date, camera, GPS, aperture, ISO, exposure, focal length
-- **Perceptual hashing** — pHash/dHash for duplicate detection
-- **Duplicate management** — Side-by-side comparison with smart suggestions (keeps largest)
-- **AI descriptions** — Optional local Ollama vision model integration (LLaVA, Moondream, etc.)
+- **Perceptual hashing** — pHash/dHash for duplicate photo detection
+- **Duplicate management** — Grid comparison with one-click "keep recommended"
+- **AI descriptions** — Optional local Ollama vision model (LLaVA, Moondream, etc.)
 - **Full-text search** — SQLite FTS5 across descriptions, tags, filenames
-- **Cloud-optimized** — macOS Files On-Demand support, auto-download + eviction
-- **Web UI** — React SPA with dark theme, infinite scroll, status badges
+- **Folder browsing** — Navigate and filter by folder tree with image counts
+- **Media type filter** — Switch between all/photos/videos
+- **Cloud-optimized** — macOS Files On-Demand, auto-download + eviction after processing
+- **Web UI** — React SPA, dark theme, infinite scroll, hover zoom, status badges
 - **CLI** — Full command-line interface for all operations
-- **Database migrations** — Alembic for schema evolution
-- **Reject/restore workflow** — Mark images for deletion, review before removing
+- **Reject/restore workflow** — Mark images for deletion from search, review before removing
+- **Database migrations** — Alembic for safe schema evolution
+- **EXIF orientation** — Thumbnails automatically rotated correctly
 
 ## Quick Start
 
@@ -136,7 +165,15 @@ MIT
 
 > **foto** (valokuva) + **ξ** (ksi, kreikan kirjain — tuntematon, löydettävä)
 
-Paikallinen valokuvien hallinta- ja metatietokantasovellus. Indeksoi valokuvat OneDrivestä, Google Drivestä, iCloud Drivestä ja paikallisista kansioista. Luo haettavan metatietokannan EXIF-tiedoilla, visuaalisilla sormenjäljillä ja valinnaisilla tekoälykuvauksilla Ollaman kautta. Tunnistaa ja auttaa hallitsemaan duplikaatteja.
+Paikallinen valokuvien ja videoiden hallintatyokalu. Indeksoi median OneDrivestä, Google Drivestä, iCloud Drivestä ja paikallisista kansioista. Luo haettavan metatietokannan EXIF-tiedoilla, visuaalisilla sormenjäljillä ja valinnaisilla tekoälykuvauksilla. Tunnistaa ja auttaa hallitsemaan duplikaatteja.
+
+### Mihin Fotoxi sopii?
+
+- Valokuvakirjastojen yhdistäminen useista pilvipalveluista ja laitteista
+- Duplikaattien löytäminen ja poistaminen puhelimen varmuuskopioista
+- Vuosien aikana kertyneiden kuvakaappausten, WhatsApp-kuvien ja sarjakuvausten siivoaminen
+- Haettavan indeksin rakentaminen suurelle kuvakokoelmalle
+- Median hallinta ilman tietojen lähettämistä kolmansille osapuolille
 
 ### Ominaisuudet
 
