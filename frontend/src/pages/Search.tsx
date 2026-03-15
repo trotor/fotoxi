@@ -18,6 +18,8 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onPrev, o
   onFolderSelect: (folder: string) => void; onPrev?: () => void; onNext?: () => void;
 }) {
   const isRejected = image.status === 'rejected'
+  const VIDEO_FORMATS = ['MP4','MOV','AVI','MKV','WMV','FLV','WEBM','M4V','MPG','MPEG','3GP','MTS']
+  const isVideo = image.format ? VIDEO_FORMATS.includes(image.format.toUpperCase()) : false
 
   // Keyboard navigation
   useEffect(() => {
@@ -57,10 +59,19 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onPrev, o
       )}
 
       <div className="bg-gray-900 rounded-lg max-w-4xl w-full mx-12 max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        {/* Image */}
-        <div className="relative flex-shrink-0">
-          <img src={fullUrl(image.id)} alt={image.file_name}
-            className="w-full max-h-[60vh] object-contain bg-black rounded-t-lg" />
+        {/* Image or Video */}
+        <div className="relative flex-shrink-0 bg-black rounded-t-lg">
+          {isVideo ? (
+            <video
+              src={fullUrl(image.id)}
+              poster={thumbUrl(image.id)}
+              controls
+              className="w-full max-h-[60vh] object-contain"
+            />
+          ) : (
+            <img src={fullUrl(image.id)} alt={image.file_name}
+              className="w-full max-h-[60vh] object-contain" />
+          )}
           <button onClick={onClose}
             className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/80">
             X

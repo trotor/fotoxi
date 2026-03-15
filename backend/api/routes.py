@@ -145,7 +145,10 @@ async def get_image_full(request: Request, image_id: int) -> FileResponse:
     file_path = Path(img.file_path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Image file not found on disk")
-    return FileResponse(str(file_path))
+    # Guess media type from extension for proper video playback
+    import mimetypes
+    media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
+    return FileResponse(str(file_path), media_type=media_type)
 
 
 @router.get("/folders")
