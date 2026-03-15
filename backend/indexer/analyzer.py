@@ -126,7 +126,7 @@ def analyze_image(
             )
 
         if attempt < retries:
-            time.sleep(retry_delay)
+            time.sleep(min(retry_delay, 5.0))  # Max 5s between retries
 
     logger.error(
         "All %d retries exhausted for %s. Last error: %s", retries, path, last_exc

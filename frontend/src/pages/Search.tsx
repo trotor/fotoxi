@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImageData } from '../api'
-import { searchImages, thumbUrl, fullUrl, updateImageStatus, getImageFolders } from '../api'
+import { searchImages, thumbUrl, fullUrl, updateImageStatus, getImageFolders, excludeFolder } from '../api'
 import FilterBar from '../components/FilterBar'
 
 const PAGE_SIZE = 40
@@ -464,80 +464,111 @@ export default function Search() {
         })}
       </div>
 
-      {/* Folder filter */}
-      <div className="flex items-center gap-2 mb-2">
+      {/* Folder breadcrumb navigation */}
+      <div className="flex flex-wrap items-center gap-1 mb-2">
         <button
           onClick={() => setShowFolderPicker(!showFolderPicker)}
-          className={`text-xs px-3 py-1 rounded border transition-colors ${
-            folderFilter
-              ? 'bg-purple-800 text-purple-100 border-purple-600'
-              : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500'
-          }`}
+          className="text-xs text-gray-500 hover:text-gray-300 mr-1"
         >
-          {folderFilter ? `Kansio: .../${folderFilter.split('/').slice(-2).join('/')}` : 'Valitse kansio'}
+          {showFolderPicker ? 'v' : '>'} Kansiot
         </button>
-        {folderFilter && (
-          <button
-            onClick={() => handleFolderSelect('')}
-            className="text-xs text-gray-500 hover:text-gray-300"
-          >
-            Tyhjenna
-          </button>
-        )}
-      </div>
-      {showFolderPicker && folders && (() => {
-        return (
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-2 mb-3 max-h-80 overflow-y-auto">
-            {folders
-              .filter(f => {
-                if (f.depth <= 2) return true
-                // Show if any ancestor is expanded
-                const parent = f.path.split('/').slice(0, -1).join('/')
-                return expandedFolders.has(parent)
-              })
-              .map(f => {
-                const isActive = folderFilter === f.path
-                const isExpanded = expandedFolders.has(f.path)
-                const hasChildren = folders.some(c => c.path.startsWith(f.path + '/') && c.path !== f.path)
-                const folderName = f.short.split('/').pop() || f.short
+        {folderFilter && (() => {
+          const home = folderFilter.split('/').findIndex(p => p === 'Users') + 2
+          const parts = folderFilter.split('/')
+          const crumbs = parts.slice(home)
+          return (
+            <>
+              <button onClick={() => handleFolderSelect('')} className="text-xs text-purple-400 hover:text-purple-300">~</button>
+              {crumbs.map((part, i) => {
+                const path = parts.slice(0, home + i + 1).join('/')
+                const isLast = i === crumbs.length - 1
                 return (
-                  <div
-                    key={f.path}
-                    className={`flex items-center rounded text-xs transition-colors ${
-                      isActive ? 'bg-purple-800 text-purple-100' : 'text-gray-300 hover:bg-gray-800/50'
-                    }`}
-                    style={{ paddingLeft: `${(f.depth - 1) * 14 + 4}px` }}
-                  >
-                    {/* Expand/collapse toggle */}
-                    {hasChildren ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleExpand(f.path) }}
-                        className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-200 flex-shrink-0"
-                        title={isExpanded ? 'Sulje' : 'Avaa'}
-                      >
-                        {isExpanded ? 'v' : '>'}
-                      </button>
-                    ) : (
-                      <span className="w-5 h-5 flex-shrink-0" />
-                    )}
-                    {/* Folder name - click to select as filter */}
+                  <span key={path} className="flex items-center gap-1">
+                    <span className="text-gray-600 text-xs">/</span>
                     <button
-                      onClick={() => handleFolderSelect(f.path)}
-                      className={`flex-1 text-left py-1 truncate ${
-                        isActive ? 'font-medium' : 'hover:text-white'
-                      }`}
+                      onClick={() => handleFolderSelect(path)}
+                      className={`text-xs ${isLast ? 'text-purple-300 font-medium' : 'text-purple-400 hover:text-purple-300'}`}
                     >
-                      {folderName}
+                      {part}
                     </button>
-                    <span className="text-gray-600 text-xs px-2 flex-shrink-0">
-                      {f.indexed < f.count ? `${f.indexed}/${f.count}` : f.count}
-                    </span>
-                  </div>
+                  </span>
                 )
               })}
-          </div>
-        )
-      })()}
+              <button
+                onClick={() => {
+                  // Go up one level
+                  const parent = folderFilter.split('/').slice(0, -1).join('/')
+                  if (parent.split('/').length > home) handleFolderSelect(parent)
+                  else handleFolderSelect('')
+                }}
+                className="text-xs text-gray-500 hover:text-gray-300 ml-2"
+                title="Yla kansio"
+              >
+                [ylös]
+              </button>
+              <button
+                onClick={async () => {
+                  if (confirm(`Piilota kansio "${folderFilter.split('/').pop()}" ja kaikki sen kuvat indeksoinnista?`)) {
+                    await excludeFolder(folderFilter)
+                    handleFolderSelect('')
+                    queryClient.invalidateQueries({ queryKey: ['search'] })
+                    queryClient.invalidateQueries({ queryKey: ['image-folders'] })
+                  }
+                }}
+                className="text-xs text-red-500 hover:text-red-400 ml-2"
+                title="Piilota kansio indeksoinnista"
+              >
+                [piilota]
+              </button>
+            </>
+          )
+        })()}
+      </div>
+      {showFolderPicker && folders && (
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-2 mb-3 max-h-80 overflow-y-auto">
+          {folders
+            .filter(f => {
+              if (f.depth <= 2) return true
+              const parent = f.path.split('/').slice(0, -1).join('/')
+              return expandedFolders.has(parent)
+            })
+            .map(f => {
+              const isActive = folderFilter === f.path
+              const isExpanded = expandedFolders.has(f.path)
+              const hasChildren = folders.some(c => c.path.startsWith(f.path + '/') && c.path !== f.path)
+              const folderName = f.short.split('/').pop() || f.short
+              return (
+                <div
+                  key={f.path}
+                  className={`flex items-center rounded text-xs transition-colors ${
+                    isActive ? 'bg-purple-800 text-purple-100' : 'text-gray-300 hover:bg-gray-800/50'
+                  }`}
+                  style={{ paddingLeft: `${(f.depth - 1) * 14 + 4}px` }}
+                >
+                  {hasChildren ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleExpand(f.path) }}
+                      className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-200 flex-shrink-0"
+                    >
+                      {isExpanded ? 'v' : '>'}
+                    </button>
+                  ) : (
+                    <span className="w-5 h-5 flex-shrink-0" />
+                  )}
+                  <button
+                    onClick={() => handleFolderSelect(f.path)}
+                    className={`flex-1 text-left py-1 truncate ${isActive ? 'font-medium' : 'hover:text-white'}`}
+                  >
+                    {folderName}
+                  </button>
+                  <span className="text-gray-600 text-xs px-2 flex-shrink-0">
+                    {f.indexed < f.count ? `${f.indexed}/${f.count}` : f.count}
+                  </span>
+                </div>
+              )
+            })}
+        </div>
+      )}
 
       {isLoading && (
         <div className="text-center py-12 text-gray-400">Ladataan...</div>

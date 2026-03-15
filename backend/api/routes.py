@@ -196,6 +196,53 @@ async def list_image_folders(request: Request) -> List[Dict[str, Any]]:
     return result_list
 
 
+class FolderExcludeRequest(BaseModel):
+    path: str
+
+
+@router.post("/folders/exclude")
+async def exclude_folder(request: Request, body: FolderExcludeRequest) -> Dict[str, Any]:
+    """Exclude a folder: add its name to exclude_patterns and reject its images."""
+    config = request.app.state.config
+    session_factory = request.app.state.session_factory
+
+    folder_name = Path(body.path).name
+    if folder_name not in config.exclude_patterns:
+        config.exclude_patterns.append(folder_name)
+
+    # Reject all images in this folder
+    async with session_factory() as session:
+        result = await session.execute(
+            select(Image).where(
+                Image.file_path.startswith(body.path),
+                Image.status.notin_(["rejected", "missing"]),
+            )
+        )
+        images = result.scalars().all()
+        count = 0
+        for img in images:
+            img.status = "rejected"
+            count += 1
+        await session.commit()
+
+    # Persist exclude_patterns
+    import json as _json
+    from backend.db.models import Setting
+    async with session_factory() as session:
+        result = await session.execute(
+            select(Setting).where(Setting.key == "exclude_patterns")
+        )
+        existing = result.scalar_one_or_none()
+        val = _json.dumps(config.exclude_patterns)
+        if existing:
+            existing.value = val
+        else:
+            session.add(Setting(key="exclude_patterns", value=val))
+        await session.commit()
+
+    return {"excluded": folder_name, "rejected_count": count}
+
+
 class ImageStatusUpdate(BaseModel):
     status: str  # "rejected", "indexed", "kept"
 

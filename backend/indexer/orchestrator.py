@@ -299,12 +299,24 @@ class IndexerOrchestrator:
     # ------------------------------------------------------------------
 
     async def _check_ollama(self) -> bool:
-        """Quick check if Ollama is reachable."""
+        """Quick check if Ollama is reachable AND can run the model."""
         import httpx
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Check if server is up
                 resp = await client.get(self.config.ollama_url)
-                return resp.status_code == 200
+                if resp.status_code != 200:
+                    return False
+                # Test if the model actually works with a simple prompt
+                test_resp = await client.post(
+                    f"{self.config.ollama_url}/api/chat",
+                    json={
+                        "model": self.config.ollama_model,
+                        "messages": [{"role": "user", "content": "hi"}],
+                        "stream": False,
+                    },
+                )
+                return test_resp.status_code == 200
         except Exception:
             return False
 
@@ -364,6 +376,8 @@ class IndexerOrchestrator:
             self.state.ai_current_file = image.file_name
 
             async with semaphore:
+                if self._stop_event.is_set():
+                    return
                 try:
                     ai_result = await loop.run_in_executor(
                         None,

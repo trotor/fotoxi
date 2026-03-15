@@ -223,6 +223,16 @@ export async function getImageFolders(): Promise<FolderInfo[]> {
   return res.json()
 }
 
+export async function excludeFolder(path: string): Promise<{ excluded: string; rejected_count: number }> {
+  const res = await fetch(`${BASE}/folders/exclude`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  })
+  if (!res.ok) throw new Error(`Exclude failed: ${res.status}`)
+  return res.json()
+}
+
 export interface BrowseResult {
   current: string
   parent: string
