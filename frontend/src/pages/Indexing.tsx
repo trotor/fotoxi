@@ -6,14 +6,19 @@ import {
   stopIndexer,
   getSettings,
   updateSettings,
+  getCloudFolders,
+  type CloudFolder,
 } from '../api'
 import ProgressBar from '../components/ProgressBar'
+import FolderBrowser from '../components/FolderBrowser'
 
 const PHASE_LABELS: Record<string, string> = {
   idle: 'Odottaa',
   scanning: 'Skannaus',
   metadata: 'Metadata',
+  starting: 'Käynnistyy...',
   ai_analysis: 'AI-analyysi',
+  grouping: 'Duplikaattien tunnistus',
   complete: 'Valmis',
   error: 'Virhe',
 }
@@ -25,6 +30,7 @@ const DEFAULT_STATUS: IndexerStatus = {
   processed: 0,
   errors: 0,
   speed: 0,
+  current_file: '',
 }
 
 export default function Indexing() {
@@ -32,7 +38,18 @@ export default function Indexing() {
   const [newDir, setNewDir] = useState('')
   const [sourceDirs, setSourceDirs] = useState<string[]>([])
   const [loadingDirs, setLoadingDirs] = useState(true)
+  const [showBrowser, setShowBrowser] = useState(false)
+  const [cloudFolders, setCloudFolders] = useState<CloudFolder[]>([])
   const wsRef = useRef<WebSocket | null>(null)
+
+  // Poll status every 2s when running (backup for WebSocket)
+  useEffect(() => {
+    if (!status.running) return
+    const interval = setInterval(() => {
+      getIndexerStatus().then(setStatus).catch(console.error)
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [status.running])
 
   // Load initial status and source dirs
   useEffect(() => {
@@ -41,6 +58,7 @@ export default function Indexing() {
       .then(s => setSourceDirs(s.source_dirs))
       .catch(console.error)
       .finally(() => setLoadingDirs(false))
+    getCloudFolders().then(setCloudFolders).catch(console.error)
   }, [])
 
   // WebSocket for live updates
@@ -52,8 +70,9 @@ export default function Indexing() {
       ws.onmessage = (e) => {
         try {
           const data = JSON.parse(e.data)
-          if (data.type === 'indexer_status') {
-            setStatus(data.payload)
+          // Backend sends state dict directly (has 'running' field)
+          if ('running' in data) {
+            setStatus(data)
           }
         } catch {
           // ignore parse errors
@@ -76,18 +95,27 @@ export default function Indexing() {
   async function handleStartStop() {
     if (status.running) {
       await stopIndexer()
+      // Poll until it actually stops
+      const poll = setInterval(async () => {
+        const s = await getIndexerStatus()
+        setStatus(s)
+        if (!s.running) clearInterval(poll)
+      }, 500)
     } else {
       await startIndexer()
+      // Immediately set running in UI for feedback
+      setStatus(prev => ({ ...prev, running: true, phase: 'starting' }))
+      setTimeout(() => getIndexerStatus().then(setStatus).catch(console.error), 1000)
     }
-    // Status will update via WebSocket, but also poll once for immediate feedback
-    setTimeout(() => getIndexerStatus().then(setStatus).catch(console.error), 300)
   }
 
-  async function handleAddDir() {
-    if (!newDir.trim()) return
-    const updated = [...sourceDirs, newDir.trim()]
+  async function handleAddDir(dir?: string) {
+    const dirToAdd = dir || newDir.trim()
+    if (!dirToAdd) return
+    const updated = [...sourceDirs, dirToAdd]
     setSourceDirs(updated)
     setNewDir('')
+    setShowBrowser(false)
     await updateSettings({ source_dirs: updated }).catch(console.error)
   }
 
@@ -125,13 +153,30 @@ export default function Indexing() {
 
         {/* Progress bar */}
         <div className="space-y-1">
-          <div className="flex justify-between text-xs text-gray-400">
-            <span>
-              {status.processed} / {status.total} käsitelty
-            </span>
-            <span>{pct}%</span>
-          </div>
-          <ProgressBar value={status.processed} max={status.total} />
+          {status.phase === 'scanning' ? (
+            <div className="flex justify-between text-xs text-gray-400">
+              <span>Löydetty {status.processed} tiedostoa...</span>
+              <span className="animate-pulse">Skannataan</span>
+            </div>
+          ) : (
+            <div className="flex justify-between text-xs text-gray-400">
+              <span>{status.processed} / {status.total} käsitelty</span>
+              <span>{pct}%</span>
+            </div>
+          )}
+          {status.phase !== 'scanning' && (
+            <ProgressBar value={status.processed} max={status.total} />
+          )}
+          {status.phase === 'scanning' && (
+            <div className="w-full bg-gray-700 rounded h-2 overflow-hidden">
+              <div className="h-full bg-blue-500 rounded animate-pulse" style={{ width: '100%', opacity: 0.4 }} />
+            </div>
+          )}
+          {status.current_file && status.running && (
+            <p className="text-xs text-gray-500 truncate mt-1">
+              {status.current_file}
+            </p>
+          )}
         </div>
 
         {/* Stats grid */}
@@ -158,6 +203,29 @@ export default function Indexing() {
       {/* Source folders */}
       <div className="bg-gray-900 rounded-lg p-5 space-y-4">
         <h2 className="font-medium text-gray-100">Lähdekansiot</h2>
+
+        {/* Quick-add cloud folders */}
+        {cloudFolders.length > 0 && (
+          <div className="space-y-1">
+            <p className="text-xs text-gray-500">Pikalisäys:</p>
+            <div className="flex flex-wrap gap-2">
+              {cloudFolders
+                .filter(cf => !sourceDirs.includes(cf.path))
+                .map(cf => (
+                  <button
+                    key={cf.path}
+                    onClick={() => handleAddDir(cf.path)}
+                    className="bg-blue-900/40 hover:bg-blue-800/60 text-blue-300 text-xs px-3 py-1.5 rounded border border-blue-800 transition-colors"
+                  >
+                    + {cf.label}
+                  </button>
+                ))}
+              {cloudFolders.every(cf => sourceDirs.includes(cf.path)) && (
+                <span className="text-xs text-gray-500">Kaikki pilviikansiot lisätty</span>
+              )}
+            </div>
+          </div>
+        )}
         {loadingDirs ? (
           <p className="text-gray-500 text-sm">Ladataan...</p>
         ) : (
@@ -191,13 +259,26 @@ export default function Indexing() {
             className="flex-1 bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500 font-mono"
           />
           <button
-            onClick={handleAddDir}
+            onClick={() => handleAddDir()}
             className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded transition-colors"
           >
             Lisää
           </button>
+          <button
+            onClick={() => setShowBrowser(true)}
+            className="bg-gray-700 hover:bg-gray-600 text-white text-sm px-4 py-2 rounded transition-colors"
+          >
+            Selaa...
+          </button>
         </div>
       </div>
+
+      {showBrowser && (
+        <FolderBrowser
+          onSelect={(path) => handleAddDir(path)}
+          onCancel={() => setShowBrowser(false)}
+        />
+      )}
     </div>
   )
 }

@@ -7,6 +7,12 @@ from typing import Optional
 import exifread
 from PIL import Image, UnidentifiedImageError
 
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass
+
 logger = logging.getLogger(__name__)
 
 

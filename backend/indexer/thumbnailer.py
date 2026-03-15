@@ -18,6 +18,11 @@ def generate_thumbnail(source: Path, thumbs_dir: Path, image_id: int) -> Optiona
     """
     try:
         from PIL import Image
+        try:
+            from pillow_heif import register_heif_opener
+            register_heif_opener()
+        except ImportError:
+            pass
 
         thumbs_dir.mkdir(parents=True, exist_ok=True)
         thumb_path = thumbs_dir / f"{image_id}.jpg"

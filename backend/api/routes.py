@@ -280,12 +280,56 @@ class SettingsUpdate(BaseModel):
     ollama_concurrency: Optional[int] = None
     server_host: Optional[str] = None
     server_port: Optional[int] = None
+    exclude_patterns: Optional[List[str]] = None
 
 
 @router.get("/settings")
 async def get_settings(request: Request) -> Dict[str, Any]:
     config = request.app.state.config
+    # Load persisted settings from DB into config
+    await _load_settings_from_db(request)
     return dataclasses.asdict(config)
+
+
+@router.get("/cloud-folders")
+async def list_cloud_folders() -> List[Dict[str, str]]:
+    """List available cloud storage folders (macOS CloudStorage)."""
+    cloud_dir = Path.home() / "Library" / "CloudStorage"
+    result = []
+    if cloud_dir.is_dir():
+        for entry in sorted(cloud_dir.iterdir()):
+            if entry.is_dir():
+                name = entry.name
+                if "OneDrive" in name:
+                    label = f"OneDrive ({name.split('-', 1)[-1] if '-' in name else name})"
+                elif "GoogleDrive" in name:
+                    label = f"Google Drive ({name.split('-', 1)[-1] if '-' in name else name})"
+                elif "Dropbox" in name:
+                    label = f"Dropbox"
+                else:
+                    label = name
+                result.append({"label": label, "path": str(entry)})
+    # Also add ~/Pictures if it exists
+    pictures = Path.home() / "Pictures"
+    if pictures.is_dir():
+        result.append({"label": "Kuvat (Pictures)", "path": str(pictures)})
+    return result
+
+
+@router.get("/browse")
+async def browse_directory(path: str = "~") -> Dict[str, Any]:
+    """List subdirectories for folder picker UI."""
+    resolved = Path(path).expanduser().resolve()
+    if not resolved.is_dir():
+        raise HTTPException(status_code=404, detail="Not a directory")
+    dirs = []
+    try:
+        for entry in sorted(resolved.iterdir()):
+            if entry.is_dir() and not entry.name.startswith("."):
+                dirs.append({"name": entry.name, "path": str(entry)})
+    except PermissionError:
+        pass
+    return {"current": str(resolved), "parent": str(resolved.parent), "dirs": dirs}
 
 
 @router.put("/settings")
@@ -295,4 +339,57 @@ async def update_settings(request: Request, body: SettingsUpdate) -> Dict[str, A
     for key, value in update_data.items():
         if hasattr(config, key):
             setattr(config, key, value)
+    # Persist to DB
+    await _save_settings_to_db(request)
     return dataclasses.asdict(config)
+
+
+async def _load_settings_from_db(request: Request) -> None:
+    """Load persisted settings from the settings table into config."""
+    from sqlalchemy import select as sa_select
+    from backend.db.models import Setting
+
+    config = request.app.state.config
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        result = await session.execute(sa_select(Setting))
+        rows = result.scalars().all()
+        for row in rows:
+            try:
+                value = json.loads(row.value)
+                if hasattr(config, row.key):
+                    setattr(config, row.key, value)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+
+async def _save_settings_to_db(request: Request) -> None:
+    """Persist current config to the settings table."""
+    from sqlalchemy import select as sa_select
+    from backend.db.models import Setting
+
+    config = request.app.state.config
+    session_factory = request.app.state.session_factory
+
+    # Save key settings that should persist between restarts
+    persist_keys = [
+        "source_dirs", "ollama_model", "ollama_url", "ai_language",
+        "ai_quality_enabled", "phash_threshold", "burst_time_window",
+        "ollama_concurrency", "exclude_patterns",
+    ]
+    config_dict = dataclasses.asdict(config)
+
+    async with session_factory() as session:
+        for key in persist_keys:
+            if key not in config_dict:
+                continue
+            value_json = json.dumps(config_dict[key])
+            result = await session.execute(
+                sa_select(Setting).where(Setting.key == key)
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                existing.value = value_json
+            else:
+                session.add(Setting(key=key, value=value_json))
+        await session.commit()

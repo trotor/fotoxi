@@ -101,6 +101,14 @@ function DetailModal({ image, onClose }: { image: ImageData; onClose: () => void
             )}
             <span className="text-gray-500">Tiedostokoko</span>
             <span className="text-gray-200">{formatBytes(image.file_size)}</span>
+            {image.file_path && (
+              <>
+                <span className="text-gray-500">Sijainti</span>
+                <span className="text-gray-400 text-xs break-all">
+                  {image.file_path.split('/').slice(-4).join('/')}
+                </span>
+              </>
+            )}
             {image.ai_quality_score != null && (
               <>
                 <span className="text-gray-500">Laatu</span>

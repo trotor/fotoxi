@@ -5,6 +5,12 @@ from typing import Optional
 import imagehash
 from PIL import Image
 
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass
+
 logger = logging.getLogger(__name__)
 
 

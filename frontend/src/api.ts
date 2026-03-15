@@ -54,6 +54,7 @@ export interface IndexerStatus {
   processed: number
   errors: number
   speed: number
+  current_file: string
 }
 
 export interface AppSettings {
@@ -82,7 +83,7 @@ export async function searchImages(params: {
   if (params.min_quality != null) query.set('min_quality', String(params.min_quality))
   if (params.page != null) query.set('page', String(params.page))
   if (params.limit != null) query.set('limit', String(params.limit))
-  const res = await fetch(`${BASE}/search?${query}`)
+  const res = await fetch(`${BASE}/images?${query}`)
   if (!res.ok) throw new Error(`Search failed: ${res.status}`)
   return res.json()
 }
@@ -143,10 +144,33 @@ export async function getSettings(): Promise<AppSettings> {
 
 export async function updateSettings(settings: Partial<AppSettings>): Promise<AppSettings> {
   const res = await fetch(`${BASE}/settings`, {
-    method: 'PATCH',
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(settings),
   })
   if (!res.ok) throw new Error(`Settings update failed: ${res.status}`)
+  return res.json()
+}
+
+export interface CloudFolder {
+  label: string
+  path: string
+}
+
+export async function getCloudFolders(): Promise<CloudFolder[]> {
+  const res = await fetch(`${BASE}/cloud-folders`)
+  if (!res.ok) throw new Error(`Cloud folders fetch failed: ${res.status}`)
+  return res.json()
+}
+
+export interface BrowseResult {
+  current: string
+  parent: string
+  dirs: { name: string; path: string }[]
+}
+
+export async function browseDirectory(path: string = '~'): Promise<BrowseResult> {
+  const res = await fetch(`${BASE}/browse?path=${encodeURIComponent(path)}`)
+  if (!res.ok) throw new Error(`Browse failed: ${res.status}`)
   return res.json()
 }

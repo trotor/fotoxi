@@ -32,6 +32,9 @@ async def create_app(config: Optional[Config] = None) -> FastAPI:
 
     engine, session_factory = await create_engine_and_init(config.db_path)
 
+    # Load persisted settings from DB
+    await _load_persisted_settings(config, session_factory)
+
     # WebSocket connections list
     ws_connections: list = []
 
@@ -79,9 +82,35 @@ async def create_app(config: Optional[Config] = None) -> FastAPI:
     app.include_router(router, prefix="/api")
     app.include_router(ws_router, prefix="/api")
 
-    # Mount frontend static files if directory exists
+    # Serve frontend SPA with fallback to index.html for client-side routing
     frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
     if frontend_dist.is_dir():
-        app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="static")
+        from starlette.responses import FileResponse as StarletteFileResponse
+
+        app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+
+        @app.get("/{full_path:path}")
+        async def serve_spa(full_path: str):
+            file_path = frontend_dist / full_path
+            if file_path.is_file():
+                return StarletteFileResponse(str(file_path))
+            return StarletteFileResponse(str(frontend_dist / "index.html"))
 
     return app
+
+
+async def _load_persisted_settings(config: Config, session_factory) -> None:
+    """Load settings from the DB settings table into config on startup."""
+    from sqlalchemy import select
+    from backend.db.models import Setting
+
+    async with session_factory() as session:
+        result = await session.execute(select(Setting))
+        rows = result.scalars().all()
+        for row in rows:
+            try:
+                value = json.loads(row.value)
+                if hasattr(config, row.key):
+                    setattr(config, row.key, value)
+            except (json.JSONDecodeError, TypeError):
+                pass

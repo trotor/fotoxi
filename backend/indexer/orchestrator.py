@@ -21,6 +21,7 @@ from backend.indexer.exif import extract_exif
 from backend.indexer.hasher import compute_hashes
 from backend.indexer.scanner import scan_directory
 from backend.indexer.thumbnailer import generate_thumbnail
+from backend.grouping.duplicates import find_duplicate_groups
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class IndexerState:
     processed: int = 0
     errors: int = 0
     speed: float = 0.0  # items per second
+    current_file: str = ""  # file currently being processed
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -42,6 +44,7 @@ class IndexerState:
             "processed": self.processed,
             "errors": self.errors,
             "speed": self.speed,
+            "current_file": self.current_file,
         }
 
 
@@ -81,7 +84,8 @@ class IndexerOrchestrator:
         found_paths: set[str] = set()
 
         for source_dir in self.config.source_dirs:
-            for file_path in scan_directory(source_dir):
+            for file_path in scan_directory(source_dir, exclude_patterns=self.config.exclude_patterns):
+                await asyncio.sleep(0)  # yield to event loop for stop checks
                 if self._stop_event.is_set():
                     logger.info("scan: stop requested, aborting")
                     return
@@ -108,12 +112,14 @@ class IndexerOrchestrator:
                     existing: Optional[Image] = result.scalar_one_or_none()
 
                     if existing is not None:
-                        # Re-index if size or mtime changed
+                        # Re-index if size or mtime changed, but preserve user decisions
                         if existing.file_size != file_size or existing.file_mtime != file_mtime:
                             existing.file_size = file_size
                             existing.file_mtime = file_mtime
-                            existing.status = "pending"
-                            existing.error_message = None
+                            # Only reset to pending if not a user decision (kept/rejected)
+                            if existing.status not in ("kept", "rejected"):
+                                existing.status = "pending"
+                                existing.error_message = None
                             await session.commit()
                             logger.debug("scan: marked changed file for re-index: %s", str_path)
                     else:
@@ -140,7 +146,7 @@ class IndexerOrchestrator:
             for image in all_images:
                 if self._stop_event.is_set():
                     return
-                if image.file_path not in found_paths and image.status != "missing":
+                if image.file_path not in found_paths and image.status not in ("missing", "kept", "rejected"):
                     image.status = "missing"
                     logger.debug("scan: marked missing file: %s", image.file_path)
             await session.commit()
@@ -181,12 +187,14 @@ class IndexerOrchestrator:
 
         with ThreadPoolExecutor(max_workers=thread_pool_size) as executor:
             for image in pending:
+                await asyncio.sleep(0)  # yield to event loop for stop checks
                 if self._stop_event.is_set():
                     logger.info("process_metadata: stop requested, aborting")
                     return
 
                 image_id = image.id
                 file_path = Path(image.file_path)
+                self.state.current_file = image.file_name
 
                 try:
                     # Run blocking calls in thread pool
@@ -253,12 +261,29 @@ class IndexerOrchestrator:
     # Phase 3: AI analysis
     # ------------------------------------------------------------------
 
+    async def _check_ollama(self) -> bool:
+        """Quick check if Ollama is reachable."""
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(self.config.ollama_url)
+                return resp.status_code == 200
+        except Exception:
+            return False
+
     async def process_ai(self) -> None:
         """Run AI analysis on images that have phash but are still pending."""
         self.state.phase = "ai_analysis"
         self.state.processed = 0
         self.state.errors = 0
         self._notify()
+
+        # Check if Ollama is running before starting
+        if not await self._check_ollama():
+            logger.warning("Ollama not reachable at %s, skipping AI analysis", self.config.ollama_url)
+            self.state.phase = "complete"
+            self._notify()
+            return
 
         # Images where phash is not null and status is still "pending"
         async with self.session_factory() as session:
@@ -286,6 +311,7 @@ class IndexerOrchestrator:
 
             image_id = image.id
             file_path = Path(image.file_path)
+            self.state.current_file = image.file_name
 
             async with semaphore:
                 try:
@@ -352,15 +378,116 @@ class IndexerOrchestrator:
         await asyncio.gather(*[_process_one(img) for img in candidates])
 
     # ------------------------------------------------------------------
+    # Phase 4: Duplicate grouping
+    # ------------------------------------------------------------------
+
+    async def group_duplicates(self) -> None:
+        """Find and store duplicate groups based on pHash and burst detection."""
+        from backend.db.models import DuplicateGroup, DuplicateGroupMember
+
+        self.state.phase = "grouping"
+        self.state.processed = 0
+        self.state.errors = 0
+        self.state.current_file = ""
+        self._notify()
+
+        # Load all images with phash
+        async with self.session_factory() as session:
+            result = await session.execute(
+                select(Image).where(Image.phash.is_not(None))
+            )
+            all_images = result.scalars().all()
+
+        if not all_images:
+            return
+
+        self.state.total = len(all_images)
+        self._notify()
+
+        # Convert to dicts for the grouping algorithm
+        image_dicts = [
+            {
+                "id": img.id,
+                "phash": img.phash,
+                "exif_date": img.exif_date,
+                "exif_camera_model": img.exif_camera_model,
+            }
+            for img in all_images
+        ]
+
+        logger.info("group_duplicates: analyzing %d images for duplicates", len(image_dicts))
+        groups = find_duplicate_groups(
+            image_dicts,
+            phash_threshold=self.config.phash_threshold,
+            burst_window=self.config.burst_time_window,
+        )
+        logger.info("group_duplicates: found %d duplicate groups", len(groups))
+
+        # Delete only unresolved groups (preserve user decisions), then add new ones
+        async with self.session_factory() as session:
+            from sqlalchemy import delete
+
+            # Find groups that have been resolved (any member has user_choice set)
+            resolved_result = await session.execute(
+                select(DuplicateGroupMember.group_id).where(
+                    DuplicateGroupMember.user_choice.is_not(None)
+                ).distinct()
+            )
+            resolved_group_ids = {row[0] for row in resolved_result.all()}
+
+            # Find image IDs already in resolved groups (don't re-group them)
+            resolved_image_ids: set[int] = set()
+            if resolved_group_ids:
+                resolved_members_result = await session.execute(
+                    select(DuplicateGroupMember.image_id).where(
+                        DuplicateGroupMember.group_id.in_(resolved_group_ids)
+                    )
+                )
+                resolved_image_ids = {row[0] for row in resolved_members_result.all()}
+
+            # Delete only unresolved groups
+            unresolved_members = delete(DuplicateGroupMember).where(
+                DuplicateGroupMember.group_id.notin_(resolved_group_ids) if resolved_group_ids else True
+            )
+            await session.execute(unresolved_members)
+            unresolved_groups = delete(DuplicateGroup).where(
+                DuplicateGroup.id.notin_(resolved_group_ids) if resolved_group_ids else True
+            )
+            await session.execute(unresolved_groups)
+            await session.commit()
+
+            # Create new groups, excluding images already in resolved groups
+            for group_data in groups:
+                new_ids = [id for id in group_data["image_ids"] if id not in resolved_image_ids]
+                if len(new_ids) < 2:
+                    continue  # Need at least 2 for a duplicate group
+
+                group = DuplicateGroup(match_type=group_data["match_type"])
+                session.add(group)
+                await session.flush()
+
+                for image_id in new_ids:
+                    member = DuplicateGroupMember(
+                        group_id=group.id,
+                        image_id=image_id,
+                        is_best=False,
+                    )
+                    session.add(member)
+
+            await session.commit()
+
+        self.state.processed = len(groups)
+        self._notify()
+
+    # ------------------------------------------------------------------
     # Top-level orchestration
     # ------------------------------------------------------------------
 
     async def run_full(self) -> None:
         """Run all indexing phases sequentially."""
+        self._stop_event.clear()  # Always reset stop flag on new run
         self.state.running = True
-        # Only clear stop_event if not already requested before this call
-        if not self._stop_event.is_set():
-            self._stop_event.clear()
+        self.state.phase = "starting"
         self._notify()
 
         try:
@@ -375,6 +502,11 @@ class IndexerOrchestrator:
                 return
 
             await self.process_ai()
+            if self._stop_event.is_set():
+                self.state.phase = "idle"
+                return
+
+            await self.group_duplicates()
             if self._stop_event.is_set():
                 self.state.phase = "idle"
                 return
