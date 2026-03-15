@@ -281,8 +281,18 @@ class IndexerOrchestrator:
         # Check if Ollama is running before starting
         if not await self._check_ollama():
             logger.warning("Ollama not reachable at %s, skipping AI analysis", self.config.ollama_url)
-            self.state.phase = "complete"
-            self._notify()
+            # Mark pending images with metadata as "indexed" (no AI available)
+            async with self.session_factory() as session:
+                result = await session.execute(
+                    select(Image).where(
+                        Image.phash.is_not(None),
+                        Image.status == "pending",
+                    )
+                )
+                for img in result.scalars().all():
+                    img.status = "indexed"
+                await session.commit()
+            logger.info("Marked pending images as indexed (no AI)")
             return
 
         # Images where phash is not null and status is still "pending"

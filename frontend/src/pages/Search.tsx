@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import type { ImageData } from '../api'
 import { searchImages, thumbUrl, fullUrl } from '../api'
 import FilterBar from '../components/FilterBar'
@@ -32,7 +32,7 @@ function DetailModal({ image, onClose }: { image: ImageData; onClose: () => void
             onClick={onClose}
             className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/80"
           >
-            ✕
+            X
           </button>
         </div>
         <div className="p-4 space-y-4">
@@ -55,7 +55,7 @@ function DetailModal({ image, onClose }: { image: ImageData; onClose: () => void
           <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
             {image.exif_date && (
               <>
-                <span className="text-gray-500">Päivämäärä</span>
+                <span className="text-gray-500">Paivamaara</span>
                 <span className="text-gray-200">{image.exif_date}</span>
               </>
             )}
@@ -87,7 +87,7 @@ function DetailModal({ image, onClose }: { image: ImageData; onClose: () => void
             )}
             {image.exif_focal_length != null && (
               <>
-                <span className="text-gray-500">Polttoväli</span>
+                <span className="text-gray-500">Polttovali</span>
                 <span className="text-gray-200">{image.exif_focal_length} mm</span>
               </>
             )}
@@ -95,7 +95,7 @@ function DetailModal({ image, onClose }: { image: ImageData; onClose: () => void
               <>
                 <span className="text-gray-500">Koko</span>
                 <span className="text-gray-200">
-                  {image.width} × {image.height} px
+                  {image.width} x {image.height} px
                 </span>
               </>
             )}
@@ -122,10 +122,20 @@ function DetailModal({ image, onClose }: { image: ImageData; onClose: () => void
   )
 }
 
+const STATUS_BADGES: Record<string, { label: string; bg: string; text: string } | null> = {
+  kept: { label: 'Sailytetty', bg: 'bg-green-600', text: 'text-white' },
+  rejected: { label: 'Hylatty', bg: 'bg-red-700', text: 'text-red-100' },
+  pending: { label: 'Odottaa', bg: 'bg-yellow-700', text: 'text-yellow-100' },
+  indexed: null, // no badge for normal state
+  error: { label: 'Virhe', bg: 'bg-red-900', text: 'text-red-300' },
+}
+
 function ImageCard({ image, onClick }: { image: ImageData; onClick: () => void }) {
+  const badge = STATUS_BADGES[image.status]
+  const isRejected = image.status === 'rejected'
   return (
     <div
-      className="relative aspect-square bg-gray-800 rounded overflow-hidden cursor-pointer group"
+      className={`relative aspect-square bg-gray-800 rounded overflow-hidden cursor-pointer group ${isRejected ? 'opacity-40' : ''}`}
       onClick={onClick}
     >
       <img
@@ -134,6 +144,11 @@ function ImageCard({ image, onClick }: { image: ImageData; onClick: () => void }
         className="w-full h-full object-cover"
         loading="lazy"
       />
+      {badge && (
+        <div className={`absolute top-1 left-1 ${badge.bg} ${badge.text} text-xs px-1.5 py-0.5 rounded`}>
+          {badge.label}
+        </div>
+      )}
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/70 transition-colors flex flex-col justify-end p-2 opacity-0 group-hover:opacity-100">
         {image.ai_description && (
           <p className="text-white text-xs line-clamp-2 mb-1">{image.ai_description}</p>
@@ -158,7 +173,6 @@ export default function Search() {
   const [dateTo, setDateTo] = useState('')
   const [camera, setCamera] = useState('')
   const [minQuality, setMinQuality] = useState('')
-  const [page, setPage] = useState(1)
   const [activeFilters, setActiveFilters] = useState({
     dateFrom: '',
     dateTo: '',
@@ -166,32 +180,68 @@ export default function Search() {
     minQuality: '',
   })
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null)
+  const [showScrollTop, setShowScrollTop] = useState(false)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['search', submittedQuery, activeFilters, page],
-    queryFn: () =>
+  const {
+    data,
+    isLoading,
+    isError,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['search', submittedQuery, activeFilters],
+    queryFn: ({ pageParam = 1 }) =>
       searchImages({
         q: submittedQuery || undefined,
         date_from: activeFilters.dateFrom || undefined,
         date_to: activeFilters.dateTo || undefined,
         camera: activeFilters.camera || undefined,
         min_quality: activeFilters.minQuality ? Number(activeFilters.minQuality) : undefined,
-        page,
+        page: pageParam,
         limit: PAGE_SIZE,
       }),
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((sum, p) => sum + p.images.length, 0)
+      return loaded < lastPage.total ? allPages.length + 1 : undefined
+    },
+    initialPageParam: 1,
   })
+
+  // Infinite scroll - IntersectionObserver
+  useEffect(() => {
+    const el = loadMoreRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage()
+        }
+      },
+      { threshold: 0.1 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+
+  // Show scroll-to-top button
+  useEffect(() => {
+    const handleScroll = () => setShowScrollTop(window.scrollY > 800)
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   const handleSearch = useCallback(() => {
     setSubmittedQuery(query)
-    setPage(1)
   }, [query])
 
   const handleFilter = useCallback(() => {
     setActiveFilters({ dateFrom, dateTo, camera, minQuality })
-    setPage(1)
   }, [dateFrom, dateTo, camera, minQuality])
 
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1
+  const allImages = data?.pages.flatMap(p => p.images) ?? []
+  const total = data?.pages[0]?.total ?? 0
 
   return (
     <div>
@@ -217,7 +267,7 @@ export default function Search() {
         dateTo={dateTo}
         camera={camera}
         minQuality={minQuality}
-        total={data?.total ?? 0}
+        total={total}
         onDateFrom={setDateFrom}
         onDateTo={setDateTo}
         onCamera={setCamera}
@@ -232,40 +282,41 @@ export default function Search() {
         <div className="text-center py-12 text-red-400">Virhe haettaessa kuvia.</div>
       )}
 
-      {data && (
+      {allImages.length > 0 && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-4">
-            {data.images.map(img => (
+            {allImages.map(img => (
               <ImageCard key={img.id} image={img} onClick={() => setSelectedImage(img)} />
             ))}
           </div>
 
-          {data.images.length === 0 && !isLoading && (
-            <div className="text-center py-12 text-gray-500">Ei tuloksia.</div>
-          )}
+          {/* Loaded count */}
+          <div className="text-center text-xs text-gray-500 mt-4">
+            {allImages.length} / {total} kuvaa
+          </div>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-4 mt-6">
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm transition-colors"
-              >
-                Edellinen
-              </button>
-              <span className="text-gray-400 text-sm">
-                {page} / {totalPages}
-              </span>
-              <button
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed rounded text-sm transition-colors"
-              >
-                Seuraava
-              </button>
-            </div>
-          )}
+          {/* Infinite scroll trigger */}
+          <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
+            {isFetchingNextPage && (
+              <span className="text-gray-400 text-sm animate-pulse">Ladataan lisaa...</span>
+            )}
+          </div>
         </>
+      )}
+
+      {allImages.length === 0 && !isLoading && data && (
+        <div className="text-center py-12 text-gray-500">Ei tuloksia.</div>
+      )}
+
+      {/* Scroll to top button */}
+      {showScrollTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="fixed bottom-6 right-6 bg-gray-800 hover:bg-gray-700 text-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors border border-gray-600 z-40"
+          title="Palaa alkuun"
+        >
+          ^
+        </button>
       )}
 
       {selectedImage && (

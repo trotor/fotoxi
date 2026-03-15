@@ -50,7 +50,7 @@ async def search_images(
     if status:
         stmt = stmt.where(Image.status == status)
     else:
-        stmt = stmt.where(Image.status.notin_(["rejected", "missing", "error"]))
+        stmt = stmt.where(Image.status.notin_(["missing", "error"]))
 
     # Full-text search via FTS5
     if q:
