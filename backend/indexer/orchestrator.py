@@ -253,6 +253,11 @@ class IndexerOrchestrator:
                             img.phash = hash_data.get("phash")
                             img.dhash = hash_data.get("dhash")
 
+                        # Mark as indexed after successful metadata extraction
+                        img.status = "indexed"
+                        import datetime as _dt
+                        img.indexed_at = _dt.datetime.now(_dt.timezone.utc)
+
                         await session.commit()
 
                     self.state.processed += 1
