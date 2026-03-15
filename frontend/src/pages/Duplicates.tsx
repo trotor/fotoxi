@@ -3,6 +3,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { DuplicateGroup, DuplicateMember } from '../api'
 import { getDuplicates, thumbUrl } from '../api'
 
+/** Hamming distance between two hex hash strings */
+function hammingDistance(a: string | null, b: string | null): number | null {
+  if (!a || !b || a.length !== b.length) return null
+  let dist = 0
+  for (let i = 0; i < a.length; i++) {
+    const xor = parseInt(a[i], 16) ^ parseInt(b[i], 16)
+    // Count bits in nibble
+    dist += ((xor >> 3) & 1) + ((xor >> 2) & 1) + ((xor >> 1) & 1) + (xor & 1)
+  }
+  return dist
+}
+
 const MATCH_TYPE_LABELS: Record<string, string> = {
   phash: 'Visuaalinen kopio',
   burst: 'Sarjakuvaus',
@@ -188,6 +200,22 @@ export default function Duplicates() {
           {MATCH_TYPE_LABELS[group.match_type] ?? group.match_type}
         </span>
         <span>{members.length} kuvaa</span>
+        {(() => {
+          const bestPhash = members.find(m2 => m2.image_id === suggestedBestId)?.image?.phash
+          if (!bestPhash) return null
+          const dists = members
+            .filter(m2 => m2.image_id !== suggestedBestId && m2.image?.phash)
+            .map(m2 => hammingDistance(m2.image!.phash, bestPhash))
+            .filter((d): d is number => d !== null)
+          if (!dists.length) return null
+          const min = Math.min(...dists)
+          const max = Math.max(...dists)
+          return (
+            <span className="text-xs text-gray-500">
+              pHash etäisyys: {min === max ? min : `${min}-${max}`}
+            </span>
+          )
+        })()}
       </div>
 
       {/* Default action - prominent */}
@@ -303,6 +331,20 @@ export default function Duplicates() {
                 <p className={`text-xs truncate ${isDerivative ? 'text-yellow-600' : 'text-gray-600'}`} title={folderOf(img.file_path)}>
                   {folder}
                 </p>
+                {img.phash && (() => {
+                  const bestPhash = members.find(m2 => m2.image_id === suggestedBestId)?.image?.phash
+                  const dist = m.image_id !== suggestedBestId ? hammingDistance(img.phash, bestPhash ?? null) : null
+                  return (
+                    <p className="text-xs text-gray-700 font-mono truncate" title={`pHash: ${img.phash}`}>
+                      {img.phash.slice(0, 8)}...
+                      {dist !== null && (
+                        <span className={`ml-1 ${dist === 0 ? 'text-red-400' : dist < 5 ? 'text-orange-400' : 'text-yellow-500'}`}>
+                          d={dist}
+                        </span>
+                      )}
+                    </p>
+                  )
+                })()}
               </div>
             </div>
           )

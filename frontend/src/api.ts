@@ -17,6 +17,7 @@ export interface ImageData {
   exif_aperture: number | null
   exif_iso: number | null
   exif_exposure: string | null
+  phash: string | null
   ai_description: string | null
   ai_tags: string[]
   ai_quality_score: number | null
