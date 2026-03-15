@@ -456,6 +456,40 @@ async def indexer_start(request: Request) -> Dict[str, Any]:
     return {"status": "started"}
 
 
+@router.post("/indexer/process")
+async def indexer_process(request: Request) -> Dict[str, Any]:
+    """Run only metadata + AI on already-scanned images (no folder scan)."""
+    orchestrator = request.app.state.orchestrator
+    if orchestrator.state.running:
+        if hasattr(orchestrator, '_task') and orchestrator._task and orchestrator._task.done():
+            orchestrator.state.running = False
+        else:
+            raise HTTPException(status_code=409, detail="Indexer is already running")
+
+    async def _process_only():
+        orchestrator._stop_event.clear()
+        orchestrator.state.running = True
+        orchestrator._notify()
+        try:
+            await orchestrator.process_metadata()
+            if not orchestrator._stop_event.is_set():
+                await orchestrator.process_ai()
+            if not orchestrator._stop_event.is_set():
+                await orchestrator.group_duplicates()
+            orchestrator.state.phase = "complete"
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("process_only error: %s", exc)
+            orchestrator.state.phase = "error"
+        finally:
+            orchestrator.state.running = False
+            orchestrator._notify()
+
+    task = asyncio.create_task(_process_only())
+    orchestrator._task = task
+    return {"status": "processing"}
+
+
 @router.post("/indexer/stop")
 async def indexer_stop(request: Request) -> Dict[str, Any]:
     orchestrator = request.app.state.orchestrator

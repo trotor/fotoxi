@@ -4,6 +4,7 @@ import {
   getIndexerStatus,
   startIndexer,
   stopIndexer,
+  processOnly,
   getSettings,
   updateSettings,
   getCloudFolders,
@@ -140,16 +141,30 @@ export default function Indexing() {
             />
             <span className="font-medium text-gray-100">{phaseLabel}</span>
           </div>
-          <button
-            onClick={handleStartStop}
-            className={`px-5 py-2 rounded text-sm font-medium transition-colors ${
-              status.running
-                ? 'bg-red-800 hover:bg-red-700 text-white'
-                : 'bg-green-700 hover:bg-green-600 text-white'
-            }`}
-          >
-            {status.running ? 'Pysäytä' : 'Käynnistä'}
-          </button>
+          <div className="flex gap-2">
+            {!status.running && (
+              <button
+                onClick={async () => {
+                  await processOnly()
+                  setStatus(prev => ({ ...prev, running: true, phase: 'metadata' }))
+                }}
+                className="px-4 py-2 rounded text-sm font-medium bg-blue-700 hover:bg-blue-600 text-white transition-colors"
+                title="Käsittele vain puuttuvat metatiedot ja AI (ei skannaa kansioita)"
+              >
+                Käsittele puuttuvat
+              </button>
+            )}
+            <button
+              onClick={handleStartStop}
+              className={`px-5 py-2 rounded text-sm font-medium transition-colors ${
+                status.running
+                  ? 'bg-red-800 hover:bg-red-700 text-white'
+                  : 'bg-green-700 hover:bg-green-600 text-white'
+              }`}
+            >
+              {status.running ? 'Pysäytä' : 'Skannaa & käsittele'}
+            </button>
+          </div>
         </div>
 
         {/* Progress bar */}

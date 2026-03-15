@@ -177,6 +177,11 @@ export async function startIndexer(): Promise<void> {
   if (!res.ok) throw new Error(`Start failed: ${res.status}`)
 }
 
+export async function processOnly(): Promise<void> {
+  const res = await fetch(`${BASE}/indexer/process`, { method: 'POST' })
+  if (!res.ok) throw new Error(`Process failed: ${res.status}`)
+}
+
 export async function stopIndexer(): Promise<void> {
   const res = await fetch(`${BASE}/indexer/stop`, { method: 'POST' })
   if (!res.ok) throw new Error(`Stop failed: ${res.status}`)
