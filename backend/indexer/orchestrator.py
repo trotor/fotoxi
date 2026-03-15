@@ -423,7 +423,10 @@ class IndexerOrchestrator:
         # Load all images with phash
         async with self.session_factory() as session:
             result = await session.execute(
-                select(Image).where(Image.phash.is_not(None))
+                select(Image).where(
+                    Image.phash.is_not(None),
+                    Image.status.notin_(["rejected", "missing", "error"]),
+                )
             )
             all_images = result.scalars().all()
 
@@ -440,6 +443,7 @@ class IndexerOrchestrator:
                 "phash": img.phash,
                 "exif_date": img.exif_date,
                 "exif_camera_model": img.exif_camera_model,
+                "file_path": img.file_path,
             }
             for img in all_images
         ]
@@ -450,7 +454,19 @@ class IndexerOrchestrator:
             phash_threshold=self.config.phash_threshold,
             burst_window=self.config.burst_time_window,
         )
-        logger.info("group_duplicates: found %d duplicate groups", len(groups))
+        logger.info("group_duplicates: found %d raw duplicate groups", len(groups))
+
+        # Filter out groups where ALL members are from Photos Library (internal duplicates)
+        PHOTOS_LIB = "Photos Library.photoslibrary"
+        id_to_path = {img["id"]: img.get("file_path", "") for img in image_dicts}
+        filtered_groups = []
+        for g in groups:
+            paths = [id_to_path.get(id, "") for id in g["image_ids"]]
+            all_photos_lib = all(PHOTOS_LIB in p for p in paths)
+            if not all_photos_lib:
+                filtered_groups.append(g)
+        groups = filtered_groups
+        logger.info("group_duplicates: %d groups after filtering Photos Library internals", len(groups))
 
         # Delete only unresolved groups (preserve user decisions), then add new ones
         async with self.session_factory() as session:

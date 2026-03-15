@@ -14,7 +14,7 @@ class Config:
     thumbs_dir: str = str(_PROJECT_DIR / "thumbs")
     source_dirs: list[str] = field(default_factory=list)
     exclude_patterns: list[str] = field(default_factory=lambda: [
-        "derivatives", "resources", ".thumbnails", ".cache",
+        "derivatives", "resources", "masters", ".thumbnails", ".cache",
         "Thumbnails", "Previews", "Caches",
     ])
     ollama_url: str = "http://localhost:11434"
