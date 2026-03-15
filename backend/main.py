@@ -92,6 +92,24 @@ async def create_app(config: Optional[Config] = None) -> FastAPI:
     app.state.ws_connections = ws_connections
     app.state.engine = engine
 
+    # Pre-pull Ollama model in background
+    async def _pull_ollama_model():
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=300) as client:
+                resp = await client.post(
+                    f"{config.ollama_url}/api/pull",
+                    json={"name": config.ollama_model, "stream": False},
+                )
+                if resp.status_code == 200:
+                    import logging
+                    logging.getLogger(__name__).info("Ollama model '%s' ready", config.ollama_model)
+        except Exception:
+            pass  # Ollama not running, ignore
+
+    import asyncio as _asyncio
+    _asyncio.create_task(_pull_ollama_model())
+
     # Include routers
     from backend.api.routes import router
     from backend.api.websocket import ws_router

@@ -144,6 +144,28 @@ async def get_image_full(request: Request, image_id: int) -> FileResponse:
     return FileResponse(str(file_path))
 
 
+class ImageStatusUpdate(BaseModel):
+    status: str  # "rejected", "indexed", "kept"
+
+
+@router.patch("/images/{image_id}/status")
+async def update_image_status(request: Request, image_id: int, body: ImageStatusUpdate) -> Dict[str, Any]:
+    """Update an image's status (reject, restore, keep)."""
+    from sqlalchemy import select as sa_select
+    allowed = {"rejected", "indexed", "kept"}
+    if body.status not in allowed:
+        raise HTTPException(status_code=400, detail=f"Status must be one of: {allowed}")
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        result = await session.execute(sa_select(Image).where(Image.id == image_id))
+        img = result.scalar_one_or_none()
+        if img is None:
+            raise HTTPException(status_code=404, detail="Image not found")
+        img.status = body.status
+        await session.commit()
+    return {"id": image_id, "status": body.status}
+
+
 # ---------------------------------------------------------------------------
 # Duplicates
 # ---------------------------------------------------------------------------

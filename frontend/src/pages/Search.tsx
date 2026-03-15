@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImageData } from '../api'
-import { searchImages, thumbUrl, fullUrl } from '../api'
+import { searchImages, thumbUrl, fullUrl, updateImageStatus } from '../api'
 import FilterBar from '../components/FilterBar'
 
 const PAGE_SIZE = 40
@@ -12,7 +12,8 @@ function formatBytes(b: number): string {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function DetailModal({ image, onClose }: { image: ImageData; onClose: () => void }) {
+function DetailModal({ image, onClose, onStatusChange }: { image: ImageData; onClose: () => void; onStatusChange: (id: number, status: string) => void }) {
+  const isRejected = image.status === 'rejected'
   return (
     <div
       className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
@@ -116,6 +117,32 @@ function DetailModal({ image, onClose }: { image: ImageData; onClose: () => void
               </>
             )}
           </div>
+          {/* Status actions */}
+          <div className="flex gap-2 pt-2 border-t border-gray-800">
+            {!isRejected ? (
+              <button
+                onClick={() => { onStatusChange(image.id, 'rejected'); onClose() }}
+                className="bg-red-800 hover:bg-red-700 text-red-100 text-sm px-4 py-2 rounded transition-colors"
+              >
+                Merkitse havitettavaksi
+              </button>
+            ) : (
+              <button
+                onClick={() => { onStatusChange(image.id, 'indexed'); onClose() }}
+                className="bg-green-700 hover:bg-green-600 text-white text-sm px-4 py-2 rounded transition-colors"
+              >
+                Palauta
+              </button>
+            )}
+            {image.status !== 'kept' && !isRejected && (
+              <button
+                onClick={() => { onStatusChange(image.id, 'kept'); onClose() }}
+                className="bg-green-800 hover:bg-green-700 text-green-100 text-sm px-4 py-2 rounded transition-colors"
+              >
+                Merkitse sailytettavaksi
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -130,7 +157,7 @@ const STATUS_BADGES: Record<string, { label: string; bg: string; text: string } 
   error: { label: 'Virhe', bg: 'bg-red-900', text: 'text-red-300' },
 }
 
-function ImageCard({ image, onClick }: { image: ImageData; onClick: () => void }) {
+function ImageCard({ image, onClick, onStatusChange }: { image: ImageData; onClick: () => void; onStatusChange: (id: number, status: string) => void }) {
   const badge = STATUS_BADGES[image.status]
   const isRejected = image.status === 'rejected'
   return (
@@ -149,7 +176,19 @@ function ImageCard({ image, onClick }: { image: ImageData; onClick: () => void }
           {badge.label}
         </div>
       )}
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/70 transition-colors flex flex-col justify-end p-2 opacity-0 group-hover:opacity-100">
+      {/* Quick reject/restore button - top right */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, isRejected ? 'indexed' : 'rejected') }}
+        className={`absolute top-1 right-1 w-7 h-7 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity ${
+          isRejected
+            ? 'bg-green-600 hover:bg-green-500 text-white'
+            : 'bg-red-700 hover:bg-red-600 text-white'
+        }`}
+        title={isRejected ? 'Palauta' : 'Havita'}
+      >
+        {isRejected ? '+' : 'x'}
+      </button>
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/70 transition-colors flex flex-col justify-end p-2 opacity-0 group-hover:opacity-100 pointer-events-none">
         {image.ai_description && (
           <p className="text-white text-xs line-clamp-2 mb-1">{image.ai_description}</p>
         )}
@@ -259,6 +298,12 @@ export default function Search() {
 
   const allImages = data?.pages.flatMap(p => p.images) ?? []
   const total = data?.pages[0]?.total ?? 0
+  const queryClient = useQueryClient()
+
+  const handleStatusChange = useCallback(async (imageId: number, newStatus: string) => {
+    await updateImageStatus(imageId, newStatus)
+    queryClient.invalidateQueries({ queryKey: ['search'] })
+  }, [queryClient])
 
   return (
     <div>
@@ -329,7 +374,7 @@ export default function Search() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-4">
             {allImages.map(img => (
-              <ImageCard key={img.id} image={img} onClick={() => setSelectedImage(img)} />
+              <ImageCard key={img.id} image={img} onClick={() => setSelectedImage(img)} onStatusChange={handleStatusChange} />
             ))}
           </div>
 
@@ -363,7 +408,7 @@ export default function Search() {
       )}
 
       {selectedImage && (
-        <DetailModal image={selectedImage} onClose={() => setSelectedImage(null)} />
+        <DetailModal image={selectedImage} onClose={() => setSelectedImage(null)} onStatusChange={handleStatusChange} />
       )}
     </div>
   )

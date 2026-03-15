@@ -117,6 +117,15 @@ export function thumbUrl(id: number): string {
   return `${BASE}/images/${id}/thumb`
 }
 
+export async function updateImageStatus(id: number, status: string): Promise<void> {
+  const res = await fetch(`${BASE}/images/${id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  })
+  if (!res.ok) throw new Error(`Status update failed: ${res.status}`)
+}
+
 export function fullUrl(id: number): string {
   return `${BASE}/images/${id}/full`
 }
