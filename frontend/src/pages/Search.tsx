@@ -13,140 +13,116 @@ function formatBytes(b: number | null | undefined): string {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function DetailModal({ image, onClose, onStatusChange, onFolderSelect }: { image: ImageData; onClose: () => void; onStatusChange: (id: number, status: string) => void; onFolderSelect: (folder: string) => void }) {
+function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onPrev, onNext }: {
+  image: ImageData; onClose: () => void; onStatusChange: (id: number, status: string) => void;
+  onFolderSelect: (folder: string) => void; onPrev?: () => void; onNext?: () => void;
+}) {
   const isRejected = image.status === 'rejected'
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' && onPrev) onPrev()
+      else if (e.key === 'ArrowRight' && onNext) onNext()
+      else if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onPrev, onNext, onClose])
+
+  // Compact EXIF line
+  const exifParts: string[] = []
+  if (image.exif_date) exifParts.push(image.exif_date.slice(0, 10))
+  if (image.exif_camera_model) exifParts.push(image.exif_camera_model)
+  if (image.exif_aperture != null) exifParts.push(`f/${image.exif_aperture}`)
+  if (image.exif_iso != null) exifParts.push(`ISO ${image.exif_iso}`)
+  if (image.exif_exposure) exifParts.push(`${image.exif_exposure}s`)
+  if (image.exif_focal_length != null) exifParts.push(`${image.exif_focal_length}mm`)
+
   return (
-    <div
-      className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-gray-900 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="relative">
-          <img
-            src={fullUrl(image.id)}
-            alt={image.file_name}
-            className="w-full max-h-96 object-contain bg-black rounded-t-lg"
-          />
-          <button
-            onClick={onClose}
-            className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/80"
-          >
+    <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center" onClick={onClose}>
+      {/* Prev arrow */}
+      {onPrev && (
+        <button onClick={(e) => { e.stopPropagation(); onPrev() }}
+          className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white w-10 h-16 rounded flex items-center justify-center text-xl z-10">
+          {'<'}
+        </button>
+      )}
+      {/* Next arrow */}
+      {onNext && (
+        <button onClick={(e) => { e.stopPropagation(); onNext() }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white w-10 h-16 rounded flex items-center justify-center text-xl z-10">
+          {'>'}
+        </button>
+      )}
+
+      <div className="bg-gray-900 rounded-lg max-w-4xl w-full mx-12 max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Image */}
+        <div className="relative flex-shrink-0">
+          <img src={fullUrl(image.id)} alt={image.file_name}
+            className="w-full max-h-[60vh] object-contain bg-black rounded-t-lg" />
+          <button onClick={onClose}
+            className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/80">
             X
           </button>
         </div>
-        <div className="p-4 space-y-4">
-          <h2 className="text-lg font-semibold text-white">{image.file_name}</h2>
+
+        {/* Info bar - compact */}
+        <div className="p-3 space-y-2 overflow-y-auto">
+          {/* Title + size */}
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-white truncate">{image.file_name}</h3>
+            <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
+              {image.width && image.height ? `${image.width}x${image.height}` : ''} {formatBytes(image.file_size)}
+            </span>
+          </div>
+
+          {/* EXIF line */}
+          {exifParts.length > 0 && (
+            <p className="text-xs text-gray-400">{exifParts.join(' · ')}</p>
+          )}
+
+          {/* AI description + tags */}
           {image.ai_description && (
-            <p className="text-gray-300 text-sm">{image.ai_description}</p>
+            <p className="text-xs text-gray-300">{image.ai_description}</p>
           )}
           {image.ai_tags && image.ai_tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1">
               {image.ai_tags.map(tag => (
-                <span
-                  key={tag}
-                  className="bg-blue-900/60 text-blue-300 text-xs px-2 py-0.5 rounded-full"
-                >
-                  {tag}
-                </span>
+                <span key={tag} className="bg-blue-900/60 text-blue-300 text-xs px-1.5 py-0.5 rounded-full">{tag}</span>
               ))}
             </div>
           )}
-          <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
-            {image.exif_date && (
-              <>
-                <span className="text-gray-500">Paivamaara</span>
-                <span className="text-gray-200">{image.exif_date}</span>
-              </>
-            )}
-            {(image.exif_camera_make || image.exif_camera_model) && (
-              <>
-                <span className="text-gray-500">Kamera</span>
-                <span className="text-gray-200">
-                  {[image.exif_camera_make, image.exif_camera_model].filter(Boolean).join(' ')}
-                </span>
-              </>
-            )}
-            {image.exif_aperture != null && (
-              <>
-                <span className="text-gray-500">Aukko</span>
-                <span className="text-gray-200">f/{image.exif_aperture}</span>
-              </>
-            )}
-            {image.exif_iso != null && (
-              <>
-                <span className="text-gray-500">ISO</span>
-                <span className="text-gray-200">{image.exif_iso}</span>
-              </>
-            )}
-            {image.exif_exposure && (
-              <>
-                <span className="text-gray-500">Valotusaika</span>
-                <span className="text-gray-200">{image.exif_exposure}</span>
-              </>
-            )}
-            {image.exif_focal_length != null && (
-              <>
-                <span className="text-gray-500">Polttovali</span>
-                <span className="text-gray-200">{image.exif_focal_length} mm</span>
-              </>
-            )}
-            {image.width != null && image.height != null && (
-              <>
-                <span className="text-gray-500">Koko</span>
-                <span className="text-gray-200">
-                  {image.width} x {image.height} px
-                </span>
-              </>
-            )}
-            <span className="text-gray-500">Tiedostokoko</span>
-            <span className="text-gray-200">{formatBytes(image.file_size)}</span>
+
+          {/* Path + actions row */}
+          <div className="flex items-center justify-between pt-1 border-t border-gray-800">
             {image.file_path && (
-              <>
-                <span className="text-gray-500">Sijainti</span>
-                <button
-                  onClick={() => { onFolderSelect(image.file_path.split('/').slice(0, -1).join('/')); onClose() }}
-                  className="text-purple-400 text-xs break-all text-left hover:text-purple-300 hover:underline"
-                  title="Suodata taman kansion kuvat"
-                >
-                  {image.file_path.split('/').slice(-4).join('/')}
+              <button
+                onClick={() => { onFolderSelect(image.file_path.split('/').slice(0, -1).join('/')); onClose() }}
+                className="text-purple-400 text-xs hover:text-purple-300 truncate max-w-[60%]"
+              >
+                {image.file_path.split('/').slice(-4).join('/')}
+              </button>
+            )}
+            <div className="flex gap-2 flex-shrink-0">
+              {!isRejected ? (
+                <button onClick={() => onStatusChange(image.id, 'rejected')}
+                  className="bg-red-800 hover:bg-red-700 text-red-100 text-xs px-3 py-1 rounded">
+                  Havita
                 </button>
-              </>
-            )}
-            {image.ai_quality_score != null && (
-              <>
-                <span className="text-gray-500">Laatu</span>
-                <span className="text-gray-200">{image.ai_quality_score.toFixed(1)} / 10</span>
-              </>
-            )}
-          </div>
-          {/* Status actions */}
-          <div className="flex gap-2 pt-2 border-t border-gray-800">
-            {!isRejected ? (
-              <button
-                onClick={() => { onStatusChange(image.id, 'rejected'); onClose() }}
-                className="bg-red-800 hover:bg-red-700 text-red-100 text-sm px-4 py-2 rounded transition-colors"
-              >
-                Merkitse havitettavaksi
-              </button>
-            ) : (
-              <button
-                onClick={() => { onStatusChange(image.id, 'indexed'); onClose() }}
-                className="bg-green-700 hover:bg-green-600 text-white text-sm px-4 py-2 rounded transition-colors"
-              >
-                Palauta
-              </button>
-            )}
-            {image.status !== 'kept' && !isRejected && (
-              <button
-                onClick={() => { onStatusChange(image.id, 'kept'); onClose() }}
-                className="bg-green-800 hover:bg-green-700 text-green-100 text-sm px-4 py-2 rounded transition-colors"
-              >
-                Merkitse sailytettavaksi
-              </button>
-            )}
+              ) : (
+                <button onClick={() => onStatusChange(image.id, 'indexed')}
+                  className="bg-green-700 hover:bg-green-600 text-white text-xs px-3 py-1 rounded">
+                  Palauta
+                </button>
+              )}
+              {image.status !== 'kept' && !isRejected && (
+                <button onClick={() => onStatusChange(image.id, 'kept')}
+                  className="bg-green-800 hover:bg-green-700 text-green-100 text-xs px-3 py-1 rounded">
+                  Sailyta
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -615,7 +591,20 @@ export default function Search() {
       )}
 
       {selectedImage && (
-        <DetailModal image={selectedImage} onClose={() => setSelectedImage(null)} onStatusChange={handleStatusChange} onFolderSelect={handleFolderSelect} />
+        <DetailModal
+          image={selectedImage}
+          onClose={() => setSelectedImage(null)}
+          onStatusChange={handleStatusChange}
+          onFolderSelect={handleFolderSelect}
+          onPrev={() => {
+            const idx = allImages.findIndex(i => i.id === selectedImage.id)
+            if (idx > 0) setSelectedImage(allImages[idx - 1])
+          }}
+          onNext={() => {
+            const idx = allImages.findIndex(i => i.id === selectedImage.id)
+            if (idx < allImages.length - 1) setSelectedImage(allImages[idx + 1])
+          }}
+        />
       )}
     </div>
   )
