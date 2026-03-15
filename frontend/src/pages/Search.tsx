@@ -297,6 +297,23 @@ export default function Search() {
     queryFn: getImageFolders,
   })
 
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+
+  const toggleExpand = useCallback((path: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) {
+        // Collapse: remove this and all children
+        for (const p of next) {
+          if (p.startsWith(path)) next.delete(p)
+        }
+      } else {
+        next.add(path)
+      }
+      return next
+    })
+  }, [])
+
   const handleFolderSelect = useCallback((path: string) => {
     const newFolder = folderFilter === path ? '' : path
     setFolderFilter(newFolder)
@@ -407,47 +424,51 @@ export default function Search() {
         )}
       </div>
       {showFolderPicker && folders && (() => {
-        // Build expandable tree - show top levels, expand when selected
-        const activePath = folderFilter || ''
-        const activeAncestors = new Set<string>()
-        if (activePath) {
-          const parts = activePath.split('/')
-          for (let i = 1; i <= parts.length; i++) {
-            activeAncestors.add(parts.slice(0, i).join('/'))
-          }
-        }
-
         return (
           <div className="bg-gray-900 border border-gray-700 rounded-lg p-2 mb-3 max-h-80 overflow-y-auto">
             {folders
               .filter(f => {
-                // Show: depth 1-2 always, deeper only if parent is in active path
                 if (f.depth <= 2) return true
+                // Show if any ancestor is expanded
                 const parent = f.path.split('/').slice(0, -1).join('/')
-                return activeAncestors.has(parent) || activeAncestors.has(f.path)
+                return expandedFolders.has(parent)
               })
               .map(f => {
                 const isActive = folderFilter === f.path
-                const isAncestor = activePath.startsWith(f.path + '/')
+                const isExpanded = expandedFolders.has(f.path)
                 const hasChildren = folders.some(c => c.path.startsWith(f.path + '/') && c.path !== f.path)
                 const folderName = f.short.split('/').pop() || f.short
                 return (
-                  <button
+                  <div
                     key={f.path}
-                    onClick={() => handleFolderSelect(f.path)}
-                    className={`block w-full text-left px-2 py-1 rounded text-xs transition-colors ${
-                      isActive
-                        ? 'bg-purple-800 text-purple-100'
-                        : isAncestor
-                        ? 'text-purple-300'
-                        : 'text-gray-300 hover:bg-gray-800'
+                    className={`flex items-center rounded text-xs transition-colors ${
+                      isActive ? 'bg-purple-800 text-purple-100' : 'text-gray-300 hover:bg-gray-800/50'
                     }`}
                     style={{ paddingLeft: `${(f.depth - 1) * 14 + 4}px` }}
                   >
-                    <span className="text-gray-600 mr-1">{hasChildren ? (isActive || isAncestor ? 'v' : '>') : ' '}</span>
-                    {folderName}
-                    <span className="text-gray-600 ml-1">({f.count})</span>
-                  </button>
+                    {/* Expand/collapse toggle */}
+                    {hasChildren ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleExpand(f.path) }}
+                        className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-200 flex-shrink-0"
+                        title={isExpanded ? 'Sulje' : 'Avaa'}
+                      >
+                        {isExpanded ? 'v' : '>'}
+                      </button>
+                    ) : (
+                      <span className="w-5 h-5 flex-shrink-0" />
+                    )}
+                    {/* Folder name - click to select as filter */}
+                    <button
+                      onClick={() => handleFolderSelect(f.path)}
+                      className={`flex-1 text-left py-1 truncate ${
+                        isActive ? 'font-medium' : 'hover:text-white'
+                      }`}
+                    >
+                      {folderName}
+                    </button>
+                    <span className="text-gray-600 text-xs px-2 flex-shrink-0">{f.count}</span>
+                  </div>
                 )
               })}
           </div>
