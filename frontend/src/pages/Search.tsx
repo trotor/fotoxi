@@ -6,7 +6,8 @@ import FilterBar from '../components/FilterBar'
 
 const PAGE_SIZE = 40
 
-function formatBytes(b: number): string {
+function formatBytes(b: number | null | undefined): string {
+  if (b == null || isNaN(b)) return '-'
   if (b < 1024) return `${b} B`
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
@@ -223,6 +224,7 @@ export default function Search() {
   const [dateTo, setDateTo] = useState('')
   const [camera, setCamera] = useState('')
   const [minQuality, setMinQuality] = useState('')
+  const [mediaType, setMediaType] = useState<'all' | 'photo' | 'video'>('all')
   const [sortBy, setSortBy] = useState('exif_date')
   const [sortOrder, setSortOrder] = useState('desc')
   const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(new Set(['rejected', 'pending']))
@@ -235,6 +237,7 @@ export default function Search() {
     minQuality: '',
     exclude: 'rejected,pending',
     folder: '',
+    media: 'all',
   })
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null)
   const [showScrollTop, setShowScrollTop] = useState(false)
@@ -258,6 +261,7 @@ export default function Search() {
         min_quality: activeFilters.minQuality ? Number(activeFilters.minQuality) : undefined,
         exclude: activeFilters.exclude || undefined,
         folder: activeFilters.folder || undefined,
+        media: activeFilters.media !== 'all' ? activeFilters.media : undefined,
         sort: sortBy,
         order: sortOrder,
         page: pageParam,
@@ -298,8 +302,8 @@ export default function Search() {
   }, [query])
 
   const handleFilter = useCallback(() => {
-    setActiveFilters({ dateFrom, dateTo, camera, minQuality, exclude: Array.from(excludeStatuses).join(','), folder: folderFilter })
-  }, [dateFrom, dateTo, camera, minQuality, excludeStatuses, folderFilter])
+    setActiveFilters({ dateFrom, dateTo, camera, minQuality, exclude: Array.from(excludeStatuses).join(','), folder: folderFilter, media: mediaType })
+  }, [dateFrom, dateTo, camera, minQuality, excludeStatuses, folderFilter, mediaType])
 
   const { data: folders } = useQuery({
     queryKey: ['image-folders'],
@@ -385,8 +389,25 @@ export default function Search() {
         onFilter={handleFilter}
       />
 
-      {/* Sort options */}
+      {/* Media type + Sort options */}
       <div className="flex flex-wrap items-center gap-2 mt-2 mb-1">
+        {/* Media type filter */}
+        {[
+          { key: 'all' as const, label: 'Kaikki' },
+          { key: 'photo' as const, label: 'Kuvat' },
+          { key: 'video' as const, label: 'Videot' },
+        ].map(m => (
+          <button
+            key={m.key}
+            onClick={() => { setMediaType(m.key); setActiveFilters(f => ({ ...f, media: m.key })) }}
+            className={`text-xs px-2 py-1 rounded transition-colors ${
+              mediaType === m.key ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+        <span className="text-gray-700 mx-1">|</span>
         <span className="text-xs text-gray-500">Jarjesta:</span>
         {[
           { key: 'exif_date', label: 'Paivamaara' },

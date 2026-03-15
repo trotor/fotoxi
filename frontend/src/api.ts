@@ -91,6 +91,7 @@ export async function searchImages(params: {
   status?: string
   exclude?: string
   folder?: string
+  media?: string
   sort?: string
   order?: string
   page?: number
@@ -105,6 +106,7 @@ export async function searchImages(params: {
   if (params.status) query.set('status', params.status)
   if (params.exclude) query.set('exclude', params.exclude)
   if (params.folder) query.set('folder', params.folder)
+  if (params.media) query.set('media', params.media)
   if (params.sort) query.set('sort', params.sort)
   if (params.order) query.set('order', params.order)
   if (params.page != null) query.set('page', String(params.page))

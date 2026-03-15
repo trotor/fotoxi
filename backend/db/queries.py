@@ -20,6 +20,7 @@ async def search_images(
     status: Optional[str] = None,
     exclude_statuses: Optional[list[str]] = None,
     folder: Optional[str] = None,
+    media: Optional[str] = None,
     sort: str = "created_at",
     order: str = "desc",
     page: int = 1,
@@ -57,6 +58,16 @@ async def search_images(
         stmt = stmt.where(Image.status.notin_(list(all_excludes)))
     else:
         stmt = stmt.where(Image.status.notin_(["missing", "error"]))
+
+    # Media type filter
+    if media == "video":
+        from backend.indexer.scanner import VIDEO_EXTENSIONS
+        video_exts = [ext.upper().lstrip(".") for ext in VIDEO_EXTENSIONS]
+        stmt = stmt.where(Image.format.in_(video_exts))
+    elif media == "photo":
+        from backend.indexer.scanner import VIDEO_EXTENSIONS
+        video_exts = [ext.upper().lstrip(".") for ext in VIDEO_EXTENSIONS]
+        stmt = stmt.where(Image.format.notin_(video_exts))
 
     # Folder filter (prefix match on file_path)
     if folder:
