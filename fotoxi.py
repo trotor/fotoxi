@@ -236,16 +236,6 @@ async def cmd_status(args: argparse.Namespace) -> None:
         result = await session.execute(select(func.count(DuplicateGroup.id)))
         dup_groups = result.scalar() or 0
 
-    print("Fotoxi Database Status")
-    print("=" * 40)
-    print(f"Total files:         {total}")
-    print(f"  Photos:            {total - videos - status_counts.get('missing', 0) - status_counts.get('error', 0) - status_counts.get('rejected', 0)}")
-    print(f"  Videos:            {videos}")
-    print()
-    print("By status:")
-    for status, count in sorted(status_counts.items()):
-        print(f"  {status:20s} {count}")
-    print()
         # Videos
         from backend.indexer.scanner import VIDEO_EXTENSIONS
         video_exts = [ext.upper().lstrip(".") for ext in VIDEO_EXTENSIONS]
@@ -256,6 +246,17 @@ async def cmd_status(args: argparse.Namespace) -> None:
             )
         )
         videos = result.scalar() or 0
+
+    active = total - status_counts.get('missing', 0) - status_counts.get('error', 0) - status_counts.get('rejected', 0)
+    print("Fotoxi Database Status")
+    print("=" * 40)
+    print(f"Total files:         {total}")
+    print(f"  Photos:            {active - videos}")
+    print(f"  Videos:            {videos}")
+    print()
+    print("By status:")
+    for status, count in sorted(status_counts.items()):
+        print(f"  {status:20s} {count}")
 
     print(f"With EXIF date:      {with_exif}")
     print(f"With GPS coords:     {with_gps}")
