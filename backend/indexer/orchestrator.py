@@ -310,7 +310,7 @@ class IndexerOrchestrator:
                 self._notify()
 
         # Process in batches - semaphores handle actual concurrency
-        BATCH = 100
+        BATCH = 20  # Small batches for faster progress updates
         for i in range(0, len(pending), BATCH):
             if self._stop_event.is_set():
                 break
