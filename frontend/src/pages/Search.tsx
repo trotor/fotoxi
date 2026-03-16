@@ -194,9 +194,19 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
         loading="lazy"
       />
       {badge && (
-        <div className={`absolute top-1 left-1 ${badge.bg} ${badge.text} text-xs px-1.5 py-0.5 rounded`}>
-          {badge.label}
-        </div>
+        image.status === 'kept' ? (
+          <button
+            onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, 'indexed') }}
+            className={`absolute top-1 left-1 ${badge.bg} ${badge.text} text-xs px-1.5 py-0.5 rounded hover:opacity-70 transition-opacity cursor-pointer`}
+            title="Klikkaa poistaaksesi sailytys-merkinta"
+          >
+            {badge.label} x
+          </button>
+        ) : (
+          <div className={`absolute top-1 left-1 ${badge.bg} ${badge.text} text-xs px-1.5 py-0.5 rounded`}>
+            {badge.label}
+          </div>
+        )
       )}
       {image.format && ['MP4','MOV','AVI','MKV','WMV','FLV','WEBM','M4V','MPG','MPEG','3GP','MTS'].includes(image.format.toUpperCase()) && (
         <div className="absolute bottom-1 left-1 bg-black/70 text-blue-300 text-xs px-1.5 py-0.5 rounded pointer-events-none">
@@ -205,7 +215,7 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
       )}
       {/* Quick action buttons on hover */}
       <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-        {/* Keep button */}
+        {/* Keep button - only for non-kept, non-rejected */}
         {image.status !== 'kept' && !isRejected && (
           <button
             onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, 'kept') }}
@@ -215,18 +225,26 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
             v
           </button>
         )}
-        {/* Reject/restore button */}
-        <button
-          onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, isRejected ? 'indexed' : 'rejected') }}
-          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-lg hover:scale-110 transition-all ${
-            isRejected
-              ? 'bg-blue-500 hover:bg-blue-400 text-white'
-              : 'bg-red-600 hover:bg-red-500 text-white'
-          }`}
-          title={isRejected ? 'Palauta' : 'Havita (Backspace)'}
-        >
-          {isRejected ? '+' : 'x'}
-        </button>
+        {/* Reject button - NOT shown for kept images (must un-keep first) */}
+        {image.status !== 'kept' && !isRejected && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, 'rejected') }}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-red-600 hover:bg-red-500 text-white shadow-lg hover:scale-110 transition-all"
+            title="Havita (Backspace)"
+          >
+            x
+          </button>
+        )}
+        {/* Restore button - for rejected images */}
+        {isRejected && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, 'indexed') }}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-blue-500 hover:bg-blue-400 text-white shadow-lg hover:scale-110 transition-all"
+            title="Palauta"
+          >
+            +
+          </button>
+        )}
       </div>
       {/* Info overlay - only bottom part */}
       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
