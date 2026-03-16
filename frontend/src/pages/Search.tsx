@@ -53,7 +53,11 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
 
   // Compact EXIF line
   const exifParts: string[] = []
-  if (image.exif_date) exifParts.push(image.exif_date.slice(0, 10))
+  if (image.exif_date) {
+    exifParts.push(image.exif_date.slice(0, 10))
+    const time = image.exif_date.slice(11, 16)
+    if (time && time !== '00:00') exifParts.push(time)
+  }
   if (image.exif_camera_model) exifParts.push(image.exif_camera_model)
   if (image.exif_aperture != null) exifParts.push(`f/${image.exif_aperture}`)
   if (image.exif_iso != null) exifParts.push(`ISO ${image.exif_iso}`)
