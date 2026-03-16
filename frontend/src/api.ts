@@ -154,7 +154,14 @@ export function fullUrl(id: number): string {
   return `${BASE}/images/${id}/full`
 }
 
-export async function getDuplicates(params?: { page?: number; limit?: number }): Promise<DuplicateGroup[]> {
+export interface DuplicatesResponse {
+  groups: DuplicateGroup[]
+  total: number
+  page: number
+  limit: number
+}
+
+export async function getDuplicates(params?: { page?: number; limit?: number }): Promise<DuplicatesResponse> {
   const query = new URLSearchParams()
   if (params?.page != null) query.set('page', String(params.page))
   if (params?.limit != null) query.set('limit', String(params.limit))

@@ -367,30 +367,87 @@ async def update_image_status(request: Request, image_id: int, body: ImageStatus
 async def list_duplicates(
     request: Request,
     status: Optional[str] = None,
-) -> List[Dict[str, Any]]:
-    session_factory = request.app.state.session_factory
-    pending_only = status == "pending"
-    async with session_factory() as session:
-        groups = await get_duplicate_groups(session=session, pending_only=pending_only)
+    page: int = 1,
+    limit: int = 20,
+) -> Dict[str, Any]:
+    """List duplicate groups with pagination. Only unresolved groups by default."""
+    from sqlalchemy import select as sa_select, func
+    from backend.db.models import DuplicateGroup, DuplicateGroupMember
 
-    # Serialize Image objects inside member dicts
-    result = []
-    for group in groups:
-        members = []
-        for member in group["members"]:
-            m = dict(member)
-            if m.get("image") is not None:
-                m["image"] = _image_to_dict(m["image"])
-            members.append(m)
-        result.append(
-            {
-                "id": group["id"],
-                "match_type": group["match_type"],
-                "created_at": group["created_at"].isoformat() if group["created_at"] is not None else None,
-                "members": members,
-            }
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        # Find unresolved group IDs efficiently (single query)
+        resolved_subq = (
+            sa_select(DuplicateGroupMember.group_id)
+            .where(DuplicateGroupMember.user_choice.is_not(None))
+            .distinct()
+            .subquery()
         )
-    return result
+        unresolved_q = (
+            sa_select(DuplicateGroup.id)
+            .where(DuplicateGroup.id.notin_(sa_select(resolved_subq.c.group_id)))
+        )
+
+        # Count total
+        count_result = await session.execute(
+            sa_select(func.count()).select_from(unresolved_q.subquery())
+        )
+        total = count_result.scalar() or 0
+
+        # Paginated group IDs
+        page_q = unresolved_q.order_by(DuplicateGroup.id).offset((page - 1) * limit).limit(limit)
+        group_ids_result = await session.execute(page_q)
+        group_ids = [r[0] for r in group_ids_result.all()]
+
+        if not group_ids:
+            return {"groups": [], "total": total, "page": page, "limit": limit}
+
+        # Fetch groups
+        groups_result = await session.execute(
+            sa_select(DuplicateGroup).where(DuplicateGroup.id.in_(group_ids)).order_by(DuplicateGroup.id)
+        )
+        groups = {g.id: g for g in groups_result.scalars().all()}
+
+        # Fetch ALL members for these groups in ONE query
+        members_result = await session.execute(
+            sa_select(DuplicateGroupMember).where(DuplicateGroupMember.group_id.in_(group_ids))
+        )
+        all_members = list(members_result.scalars().all())
+
+        # Fetch ALL images for these members in ONE query
+        image_ids = [m.image_id for m in all_members]
+        images_result = await session.execute(
+            sa_select(Image).where(Image.id.in_(image_ids))
+        )
+        images_map = {img.id: img for img in images_result.scalars().all()}
+
+    # Build response
+    result = []
+    members_by_group: dict[int, list] = {}
+    for m in all_members:
+        members_by_group.setdefault(m.group_id, []).append(m)
+
+    for gid in group_ids:
+        g = groups.get(gid)
+        if not g:
+            continue
+        members = []
+        for m in members_by_group.get(gid, []):
+            img = images_map.get(m.image_id)
+            members.append({
+                "image_id": m.image_id,
+                "is_best": m.is_best,
+                "user_choice": m.user_choice,
+                "image": _image_to_dict(img) if img else None,
+            })
+        result.append({
+            "id": g.id,
+            "match_type": g.match_type,
+            "created_at": g.created_at.isoformat() if g.created_at else None,
+            "members": members,
+        })
+
+    return {"groups": result, "total": total, "page": page, "limit": limit}
 
 
 @router.get("/duplicates/{group_id}")

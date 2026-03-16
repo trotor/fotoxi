@@ -79,17 +79,17 @@ function findBest(members: DuplicateMember[]): number {
 
 export default function Duplicates() {
   const queryClient = useQueryClient()
-  const [groupIndex, setGroupIndex] = useState(0)
+  const [dupPage, setDupPage] = useState(1)
   const [rejected, setRejected] = useState<Record<number, Set<number>>>({})
+  const [groupIndex, setGroupIndex] = useState(0)
 
-  const { data: groups = [], isLoading, isError } = useQuery({
-    queryKey: ['duplicates'],
-    queryFn: async () => {
-      const all = await getDuplicates({ limit: 200 })
-      // Filter to only show groups with unresolved members
-      return all.filter(g => g.members.some(m => m.user_choice === null))
-    },
+  const { data: dupData, isLoading, isError } = useQuery({
+    queryKey: ['duplicates', dupPage],
+    queryFn: () => getDuplicates({ page: dupPage, limit: 20 }),
   })
+
+  const groups = dupData?.groups ?? []
+  const totalGroups = dupData?.total ?? 0
 
   const resolveMutation = useMutation({
     mutationFn: async ({ groupId, keepIds, rejectIds }: { groupId: number; keepIds: number[]; rejectIds: number[] }) => {
@@ -147,6 +147,10 @@ export default function Duplicates() {
             delete next[group.id]
             return next
           })
+          // If we're at the end of current page, reset index
+          if (groupIndex >= groups.length - 1) {
+            setGroupIndex(0)
+          }
           queryClient.invalidateQueries({ queryKey: ['duplicates'] })
         },
       }
@@ -207,7 +211,12 @@ export default function Duplicates() {
       delete next[group.id]
       return next
     })
-    if (groupIndex < groups.length - 1) setGroupIndex(i => i + 1)
+    if (groupIndex < groups.length - 1) {
+      setGroupIndex(i => i + 1)
+    } else if ((dupPage) * 20 < totalGroups) {
+      setDupPage(p => p + 1)
+      setGroupIndex(0)
+    }
   }
 
   // Find the best member for preview
@@ -218,7 +227,7 @@ export default function Duplicates() {
     <div className="space-y-4 max-w-4xl mx-auto p-4">
       {/* Progress */}
       <div className="flex justify-between items-center text-sm text-gray-400">
-        <span>Ryhmä {groupIndex + 1} / {groups.length}</span>
+        <span>Ryhmä {(dupPage - 1) * 20 + groupIndex + 1} / {totalGroups}</span>
         <span className="bg-gray-800 px-2 py-0.5 rounded text-xs">
           {MATCH_TYPE_LABELS[group.match_type] ?? group.match_type}
         </span>
