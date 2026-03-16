@@ -23,16 +23,28 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
   const VIDEO_FORMATS = ['MP4','MOV','AVI','MKV','WMV','FLV','WEBM','M4V','MPG','MPEG','3GP','MTS']
   const isVideo = image.format ? VIDEO_FORMATS.includes(image.format.toUpperCase()) : false
 
-  // Keyboard navigation
+  // Keyboard navigation + quick actions
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'ArrowLeft' && onPrev) onPrev()
       else if (e.key === 'ArrowRight' && onNext) onNext()
       else if (e.key === 'Escape') onClose()
+      else if (e.key === 'Enter') {
+        // Keep + next
+        if (!isRejected && image.status !== 'kept') onStatusChange(image.id, 'kept')
+        if (onNext) onNext()
+      }
+      else if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault()
+        // Reject + next
+        if (!isRejected) onStatusChange(image.id, 'rejected')
+        else onStatusChange(image.id, 'indexed') // restore if already rejected
+        if (onNext) onNext()
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [onPrev, onNext, onClose])
+  }, [onPrev, onNext, onClose, onStatusChange, image.id, image.status, isRejected])
 
   // Compact EXIF line
   const exifParts: string[] = []
@@ -129,24 +141,30 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
             )}
             <div className="flex gap-2 flex-shrink-0">
               {!isRejected ? (
-                <button onClick={() => onStatusChange(image.id, 'rejected')}
-                  className="bg-red-800 hover:bg-red-700 text-red-100 text-xs px-3 py-1 rounded">
-                  Havita
+                <button onClick={() => { onStatusChange(image.id, 'rejected'); onNext?.() }}
+                  className="bg-red-800 hover:bg-red-700 text-red-100 text-xs px-3 py-1 rounded"
+                  title="Backspace">
+                  Havita &amp; seur.
                 </button>
               ) : (
-                <button onClick={() => onStatusChange(image.id, 'indexed')}
+                <button onClick={() => { onStatusChange(image.id, 'indexed'); onNext?.() }}
                   className="bg-green-700 hover:bg-green-600 text-white text-xs px-3 py-1 rounded">
-                  Palauta
+                  Palauta &amp; seur.
                 </button>
               )}
               {image.status !== 'kept' && !isRejected && (
-                <button onClick={() => onStatusChange(image.id, 'kept')}
-                  className="bg-green-800 hover:bg-green-700 text-green-100 text-xs px-3 py-1 rounded">
-                  Sailyta
+                <button onClick={() => { onStatusChange(image.id, 'kept'); onNext?.() }}
+                  className="bg-green-800 hover:bg-green-700 text-green-100 text-xs px-3 py-1 rounded"
+                  title="Enter">
+                  Sailyta &amp; seur.
                 </button>
               )}
             </div>
           </div>
+          {/* Keyboard shortcuts hint */}
+          <p className="text-xs text-gray-700 text-center pt-1">
+            Enter = sailyta · Backspace = havita · Nuolet = edellinen/seuraava · Esc = sulje
+          </p>
         </div>
       </div>
     </div>
