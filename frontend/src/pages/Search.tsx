@@ -563,7 +563,9 @@ export default function Search() {
               { label: '±5 min', value: 300 },
               { label: '±30 min', value: 1800 },
               { label: '±1 h', value: 3600 },
-              { label: '±1 pv', value: 86400 },
+              { label: '±1 d', value: 86400 },
+              { label: '±3 d', value: 259200 },
+              { label: '±7 d', value: 604800 },
             ].map(opt => (
               <button key={opt.value}
                 onClick={() => setTimeRange(opt.value)}
