@@ -203,18 +203,31 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
           Video
         </div>
       )}
-      {/* Quick reject/restore button - always visible on hover, large enough to click */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, isRejected ? 'indexed' : 'rejected') }}
-        className={`absolute top-1 right-1 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold opacity-0 group-hover:opacity-100 transition-all shadow-lg ${
-          isRejected
-            ? 'bg-green-500 hover:bg-green-400 text-white hover:scale-110'
-            : 'bg-red-600 hover:bg-red-500 text-white hover:scale-110'
-        }`}
-        title={isRejected ? 'Palauta' : 'Havita'}
-      >
-        {isRejected ? '+' : 'x'}
-      </button>
+      {/* Quick action buttons on hover */}
+      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+        {/* Keep button */}
+        {image.status !== 'kept' && !isRejected && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, 'kept') }}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-green-600 hover:bg-green-500 text-white shadow-lg hover:scale-110 transition-all"
+            title="Sailyta (Enter)"
+          >
+            v
+          </button>
+        )}
+        {/* Reject/restore button */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, isRejected ? 'indexed' : 'rejected') }}
+          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shadow-lg hover:scale-110 transition-all ${
+            isRejected
+              ? 'bg-blue-500 hover:bg-blue-400 text-white'
+              : 'bg-red-600 hover:bg-red-500 text-white'
+          }`}
+          title={isRejected ? 'Palauta' : 'Havita (Backspace)'}
+        >
+          {isRejected ? '+' : 'x'}
+        </button>
+      </div>
       {/* Info overlay - only bottom part */}
       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
         {image.exif_date && (
