@@ -111,7 +111,7 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
                   onClick={() => { onTimeNear(image.exif_date!); onClose() }}
                   className="text-xs text-cyan-400 hover:text-cyan-300 flex-shrink-0"
                 >
-                  [lahella otetut]
+                  [samaan aikaan]
                 </button>
               )}
             </div>
@@ -249,6 +249,7 @@ export default function Search() {
   const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(new Set(['rejected', 'pending']))
   const [folderFilter, setFolderFilter] = useState('')
   const [timeNear, setTimeNear] = useState('')
+  const [timeRange, setTimeRange] = useState(300) // seconds, default ±5min
   const [showFolderPicker, setShowFolderPicker] = useState(false)
   const [activeFilters, setActiveFilters] = useState({
     dateFrom: '',
@@ -300,7 +301,7 @@ export default function Search() {
         folder: activeFilters.folder || undefined,
         media: activeFilters.media !== 'all' ? activeFilters.media : undefined,
         time_near: activeFilters.timeNear || undefined,
-        time_range: activeFilters.timeNear ? 120 : undefined,
+        time_range: activeFilters.timeNear ? timeRange : undefined,
         sort: activeFilters.timeNear ? 'exif_date' : sortBy,
         order: sortOrder,
         page: pageParam,
@@ -508,13 +509,32 @@ export default function Search() {
         })}
       </div>
 
-      {/* Time proximity filter badge */}
+      {/* Time proximity filter with adjustable range */}
       {activeFilters.timeNear && (
-        <div className="flex items-center gap-2 mb-2">
-          <span className="bg-cyan-800 text-cyan-100 text-xs px-3 py-1 rounded">
-            Lahella: {activeFilters.timeNear.slice(0, 19).replace('T', ' ')} (±2 min)
+        <div className="flex flex-wrap items-center gap-2 mb-2 bg-cyan-900/20 border border-cyan-800/30 rounded-lg px-3 py-2">
+          <span className="text-cyan-200 text-xs">
+            Samaan aikaan: {activeFilters.timeNear.slice(0, 19).replace('T', ' ')}
           </span>
-          <button onClick={() => handleTimeNear('')} className="text-xs text-gray-500 hover:text-gray-300">
+          <div className="flex items-center gap-1">
+            {[
+              { label: '±1 min', value: 60 },
+              { label: '±5 min', value: 300 },
+              { label: '±30 min', value: 1800 },
+              { label: '±1 h', value: 3600 },
+              { label: '±1 pv', value: 86400 },
+            ].map(opt => (
+              <button key={opt.value}
+                onClick={() => setTimeRange(opt.value)}
+                className={`text-xs px-2 py-0.5 rounded transition-colors ${
+                  timeRange === opt.value
+                    ? 'bg-cyan-700 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => handleTimeNear('')} className="text-xs text-gray-500 hover:text-gray-300 ml-auto">
             Tyhjenna
           </button>
         </div>
