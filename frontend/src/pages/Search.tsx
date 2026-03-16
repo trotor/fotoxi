@@ -4,6 +4,7 @@ import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-quer
 import type { ImageData } from '../api'
 import { searchImages, thumbUrl, fullUrl, updateImageStatus, getImageFolders, excludeFolder } from '../api'
 import FilterBar from '../components/FilterBar'
+import { useI18n } from '../i18n/useTranslation'
 
 const PAGE_SIZE = 40
 
@@ -19,6 +20,7 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
   onFolderSelect: (folder: string) => void; onTimeNear?: (date: string) => void;
   onPrev?: () => void; onNext?: () => void;
 }) {
+  const { t } = useI18n()
   const isRejected = image.status === 'rejected'
   const VIDEO_FORMATS = ['MP4','MOV','AVI','MKV','WMV','FLV','WEBM','M4V','MPG','MPEG','3GP','MTS']
   const isVideo = image.format ? VIDEO_FORMATS.includes(image.format.toUpperCase()) : false
@@ -114,7 +116,7 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
                   onClick={() => { onTimeNear(image.exif_date!); onClose() }}
                   className="text-xs text-cyan-400 hover:text-cyan-300 flex-shrink-0"
                 >
-                  [samaan aikaan]
+                  [{t('search.nearby_time')}]
                 </button>
               )}
             </div>
@@ -144,29 +146,26 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
             )}
             <div className="flex gap-2 flex-shrink-0">
               {image.status === 'kept' ? (
-                /* Kept: show un-keep button only, no reject */
                 <button onClick={() => onStatusChange(image.id, 'indexed')}
                   className="bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs px-3 py-1 rounded">
-                  Poista sailytys
+                  {t('search.clear')} kept
                 </button>
               ) : isRejected ? (
-                /* Rejected: restore */
                 <button onClick={() => { onStatusChange(image.id, 'indexed'); onNext?.() }}
                   className="bg-green-700 hover:bg-green-600 text-white text-xs px-3 py-1 rounded">
-                  Palauta &amp; seur.
+                  {t('search.restore_next')}
                 </button>
               ) : (
-                /* Normal: keep + reject */
                 <>
                   <button onClick={() => { onStatusChange(image.id, 'kept'); onNext?.() }}
                     className="bg-green-800 hover:bg-green-700 text-green-100 text-xs px-3 py-1 rounded"
                     title="Enter">
-                    Sailyta &amp; seur.
+                    {t('search.keep_next')}
                   </button>
                   <button onClick={() => { onStatusChange(image.id, 'rejected'); onNext?.() }}
                     className="bg-red-800 hover:bg-red-700 text-red-100 text-xs px-3 py-1 rounded"
                     title="Backspace">
-                    Havita &amp; seur.
+                    {t('search.reject_next')}
                   </button>
                 </>
               )}
@@ -174,7 +173,7 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
           </div>
           {/* Keyboard shortcuts hint */}
           <p className="text-xs text-gray-700 text-center pt-1">
-            Enter = sailyta · Backspace = havita · Nuolet = edellinen/seuraava · Esc = sulje
+            {t('search.keyboard_hints')}
           </p>
         </div>
       </div>
@@ -277,6 +276,7 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
 }
 
 export default function Search() {
+  const { t } = useI18n()
   const [searchParams] = useSearchParams()
 
   const [query, setQuery] = useState('')
@@ -330,7 +330,7 @@ export default function Search() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['search', submittedQuery, activeFilters, sortBy, sortOrder],
+    queryKey: ['search', submittedQuery, activeFilters, sortBy, sortOrder, timeRange],
     queryFn: ({ pageParam = 1 }) =>
       searchImages({
         q: submittedQuery || undefined,
@@ -452,14 +452,14 @@ export default function Search() {
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSearch()}
-          placeholder="Hae kuvia..."
+          placeholder={t('search.placeholder')}
           className="flex-1 bg-gray-800 border border-gray-600 rounded px-4 py-2 text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500"
         />
         <button
           onClick={handleSearch}
           className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded transition-colors"
         >
-          Hae
+          {t('search.button')}
         </button>
       </div>
 
@@ -480,9 +480,9 @@ export default function Search() {
       <div className="flex flex-wrap items-center gap-2 mt-2 mb-1">
         {/* Media type filter */}
         {[
-          { key: 'all' as const, label: 'Kaikki' },
-          { key: 'photo' as const, label: 'Kuvat' },
-          { key: 'video' as const, label: 'Videot' },
+          { key: 'all' as const, label: t('search.all') },
+          { key: 'photo' as const, label: t('search.photos') },
+          { key: 'video' as const, label: t('search.videos') },
         ].map(m => (
           <button
             key={m.key}
@@ -495,14 +495,14 @@ export default function Search() {
           </button>
         ))}
         <span className="text-gray-700 mx-1">|</span>
-        <span className="text-xs text-gray-500">Jarjesta:</span>
+        <span className="text-xs text-gray-500">{t('search.sort')}</span>
         {[
-          { key: 'exif_date', label: 'Paivamaara' },
-          { key: 'file_name', label: 'Nimi' },
-          { key: 'file_path', label: 'Kansio' },
-          { key: 'file_size', label: 'Koko' },
-          { key: 'phash', label: 'Samankaltaisuus' },
-          { key: 'created_at', label: 'Lisaysaika' },
+          { key: 'exif_date', label: t('search.date') },
+          { key: 'file_name', label: t('search.name') },
+          { key: 'file_path', label: t('search.folder') },
+          { key: 'file_size', label: t('search.size') },
+          { key: 'phash', label: t('search.similarity') },
+          { key: 'created_at', label: t('search.added') },
         ].map(s => (
           <button
             key={s.key}
@@ -527,12 +527,12 @@ export default function Search() {
 
       {/* Status toggle filters - click to show/hide */}
       <div className="flex flex-wrap items-center gap-2 mt-2 mb-2">
-        <span className="text-xs text-gray-500">Nayta:</span>
+        <span className="text-xs text-gray-500">{t('search.show')}</span>
         {[
-          { key: 'indexed', label: 'Indeksoitu', activeColor: 'bg-gray-600 text-gray-100', },
-          { key: 'kept', label: 'Sailytetyt', activeColor: 'bg-green-700 text-white' },
-          { key: 'rejected', label: 'Hylatyt', activeColor: 'bg-red-800 text-red-100' },
-          { key: 'pending', label: 'Odottavat', activeColor: 'bg-yellow-700 text-yellow-100' },
+          { key: 'indexed', label: t('search.indexed'), activeColor: 'bg-gray-600 text-gray-100', },
+          { key: 'kept', label: t('search.kept'), activeColor: 'bg-green-700 text-white' },
+          { key: 'rejected', label: t('search.rejected'), activeColor: 'bg-red-800 text-red-100' },
+          { key: 'pending', label: t('search.pending'), activeColor: 'bg-yellow-700 text-yellow-100' },
         ].map(f => {
           const isVisible = !excludeStatuses.has(f.key)
           return (
@@ -555,7 +555,7 @@ export default function Search() {
       {activeFilters.timeNear && (
         <div className="flex flex-wrap items-center gap-2 mb-2 bg-cyan-900/20 border border-cyan-800/30 rounded-lg px-3 py-2">
           <span className="text-cyan-200 text-xs">
-            Samaan aikaan: {activeFilters.timeNear.slice(0, 19).replace('T', ' ')}
+            {t('search.same_time')} {activeFilters.timeNear.slice(0, 19).replace('T', ' ')}
           </span>
           <div className="flex items-center gap-1">
             {[
@@ -577,7 +577,7 @@ export default function Search() {
             ))}
           </div>
           <button onClick={() => handleTimeNear('')} className="text-xs text-gray-500 hover:text-gray-300 ml-auto">
-            Tyhjenna
+            {t('search.clear')}
           </button>
         </div>
       )}
@@ -689,7 +689,7 @@ export default function Search() {
       )}
 
       {isLoading && (
-        <div className="text-center py-12 text-gray-400">Ladataan...</div>
+        <div className="text-center py-12 text-gray-400">{t('search.loading')}</div>
       )}
       {isError && (
         <div className="text-center py-12 text-red-400">Virhe haettaessa kuvia.</div>
@@ -718,7 +718,7 @@ export default function Search() {
       )}
 
       {allImages.length === 0 && !isLoading && data && (
-        <div className="text-center py-12 text-gray-500">Ei tuloksia.</div>
+        <div className="text-center py-12 text-gray-500">{t('search.no_results')}</div>
       )}
 
       {/* Scroll to top button */}

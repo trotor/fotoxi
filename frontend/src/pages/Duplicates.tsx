@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { DuplicateGroup, DuplicateMember } from '../api'
 import { getDuplicates, thumbUrl } from '../api'
+import { useI18n } from '../i18n/useTranslation'
 
 /** Hamming distance between two hex hash strings */
 function hammingDistance(a: string | null, b: string | null): number | null {
@@ -117,9 +118,11 @@ export default function Duplicates() {
     return Array.from(set)
   }, [members])
 
-  if (isLoading) return <div className="text-center py-12 text-gray-400">Ladataan...</div>
-  if (isError) return <div className="text-center py-12 text-red-400">Virhe haettaessa duplikaatteja.</div>
-  if (groups.length === 0 || !group) return <div className="text-center py-12 text-gray-500">Ei duplikaatteja.</div>
+  const { t } = useI18n()
+
+  if (isLoading) return <div className="text-center py-12 text-gray-400">{t('search.loading')}</div>
+  if (isError) return <div className="text-center py-12 text-red-400">Error</div>
+  if (groups.length === 0 || !group) return <div className="text-center py-12 text-gray-500">{t('dup.no_duplicates')}</div>
 
   function toggleReject(imageId: number) {
     if (!group) return
@@ -231,7 +234,7 @@ export default function Duplicates() {
         <span className="bg-gray-800 px-2 py-0.5 rounded text-xs">
           {MATCH_TYPE_LABELS[group.match_type] ?? group.match_type}
         </span>
-        <span>{members.length} kuvaa</span>
+        <span>{members.length} {t('dup.images')}</span>
         {(() => {
           const bestPhash = members.find(m2 => m2.image_id === suggestedBestId)?.image?.phash
           if (!bestPhash) return null
@@ -268,14 +271,14 @@ export default function Duplicates() {
           disabled={resolveMutation.isPending}
           className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-300 text-xs px-3 py-1.5 rounded border border-gray-600 transition-colors"
         >
-          Säilytä kaikki
+          {t('dup.keep_all')}
         </button>
         <button
           onClick={handleRejectAll}
           disabled={resolveMutation.isPending}
           className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-red-400 text-xs px-3 py-1.5 rounded border border-red-900 transition-colors"
         >
-          Hävitä kaikki
+          {t('dup.reject_all')}
         </button>
 
         {folders.length > 1 && folders.map(folder => {
@@ -398,10 +401,10 @@ export default function Duplicates() {
           disabled={groupIndex === 0}
           className="px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 rounded text-sm"
         >
-          Edellinen
+          {t('dup.prev')}
         </button>
         <button onClick={handleSkip} className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm">
-          Ohita
+          {t('dup.skip')}
         </button>
         {groupRejected.size > 0 && (
           <button

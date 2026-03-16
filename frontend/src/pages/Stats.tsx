@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { getStats } from '../api'
+import { useI18n } from '../i18n/useTranslation'
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
@@ -18,7 +19,8 @@ export default function Stats() {
   const [showAllCameras, setShowAllCameras] = useState(false)
   const [expandedYear, setExpandedYear] = useState<string | null>(null)
 
-  if (isLoading || !stats) return <div className="text-gray-400 py-12 text-center">Ladataan...</div>
+  const { t } = useI18n()
+  if (isLoading || !stats) return <div className="text-gray-400 py-12 text-center">{t('search.loading')}</div>
 
   const active = (stats.status_counts.indexed || 0) + (stats.status_counts.kept || 0)
   const maxYear = Math.max(...stats.years.map(y => y.count), 1)

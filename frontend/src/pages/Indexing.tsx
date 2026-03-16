@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useI18n } from '../i18n/useTranslation'
 import type { IndexerStatus } from '../api'
 import {
   getIndexerStatus,
@@ -13,15 +14,15 @@ import {
 import ProgressBar from '../components/ProgressBar'
 import FolderBrowser from '../components/FolderBrowser'
 
-const PHASE_LABELS: Record<string, string> = {
-  idle: 'Odottaa',
-  scanning: 'Skannaus',
-  metadata: 'Metadata',
-  starting: 'Käynnistyy...',
-  ai_analysis: 'AI-analyysi',
-  grouping: 'Duplikaattien tunnistus',
-  complete: 'Valmis',
-  error: 'Virhe',
+const PHASE_KEYS: Record<string, string> = {
+  idle: 'idx.phase.idle',
+  scanning: 'idx.phase.scanning',
+  metadata: 'idx.phase.metadata',
+  starting: 'idx.phase.starting',
+  ai_analysis: 'idx.phase.ai_analysis',
+  grouping: 'idx.phase.grouping',
+  complete: 'idx.phase.complete',
+  error: 'idx.phase.error',
 }
 
 const DEFAULT_STATUS: IndexerStatus = {
@@ -128,7 +129,8 @@ export default function Indexing() {
   }
 
   const pct = status.total > 0 ? Math.round((status.processed / status.total) * 100) : 0
-  const phaseLabel = PHASE_LABELS[status.phase] ?? status.phase
+  const { t } = useI18n()
+  const phaseLabel = PHASE_KEYS[status.phase] ? t(PHASE_KEYS[status.phase]) : status.phase
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -151,7 +153,7 @@ export default function Indexing() {
                 className="px-4 py-2 rounded text-sm font-medium bg-blue-700 hover:bg-blue-600 text-white transition-colors"
                 title="Käsittele vain puuttuvat metatiedot ja AI (ei skannaa kansioita)"
               >
-                Käsittele puuttuvat
+                {t('idx.process_missing')}
               </button>
             )}
             <button
@@ -162,7 +164,7 @@ export default function Indexing() {
                   : 'bg-green-700 hover:bg-green-600 text-white'
               }`}
             >
-              {status.running ? 'Pysäytä' : 'Skannaa & käsittele'}
+              {status.running ? t('idx.stop') : t('idx.start_scan')}
             </button>
           </div>
         </div>
@@ -350,7 +352,7 @@ export default function Indexing() {
 
       {/* Source folders */}
       <div className="bg-gray-900 rounded-lg p-5 space-y-4">
-        <h2 className="font-medium text-gray-100">Lähdekansiot</h2>
+        <h2 className="font-medium text-gray-100">{t('idx.source_folders')}</h2>
 
         {/* Quick-add cloud folders */}
         {cloudFolders.length > 0 && (
@@ -398,7 +400,7 @@ export default function Indexing() {
                   onClick={() => handleRemoveDir(dir)}
                   className="ml-3 text-gray-500 hover:text-red-400 transition-colors text-xs flex-shrink-0"
                 >
-                  Poista
+                  {t('idx.remove')}
                 </button>
               </li>
               )
@@ -421,13 +423,13 @@ export default function Indexing() {
             onClick={() => handleAddDir()}
             className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded transition-colors"
           >
-            Lisää
+            {t('idx.add')}
           </button>
           <button
             onClick={() => setShowBrowser(true)}
             className="bg-gray-700 hover:bg-gray-600 text-white text-sm px-4 py-2 rounded transition-colors"
           >
-            Selaa...
+            {t('idx.browse')}
           </button>
         </div>
       </div>
