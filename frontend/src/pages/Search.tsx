@@ -13,9 +13,10 @@ function formatBytes(b: number | null | undefined): string {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onPrev, onNext }: {
+function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNear, onPrev, onNext }: {
   image: ImageData; onClose: () => void; onStatusChange: (id: number, status: string) => void;
-  onFolderSelect: (folder: string) => void; onPrev?: () => void; onNext?: () => void;
+  onFolderSelect: (folder: string) => void; onTimeNear?: (date: string) => void;
+  onPrev?: () => void; onNext?: () => void;
 }) {
   const isRejected = image.status === 'rejected'
   const VIDEO_FORMATS = ['MP4','MOV','AVI','MKV','WMV','FLV','WEBM','M4V','MPG','MPEG','3GP','MTS']
@@ -88,9 +89,19 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onPrev, o
             </span>
           </div>
 
-          {/* EXIF line */}
+          {/* EXIF line + nearby button */}
           {exifParts.length > 0 && (
-            <p className="text-xs text-gray-400">{exifParts.join(' · ')}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-xs text-gray-400">{exifParts.join(' · ')}</p>
+              {image.exif_date && onTimeNear && (
+                <button
+                  onClick={() => { onTimeNear(image.exif_date!); onClose() }}
+                  className="text-xs text-cyan-400 hover:text-cyan-300 flex-shrink-0"
+                >
+                  [lahella otetut]
+                </button>
+              )}
+            </div>
           )}
 
           {/* AI description + tags */}
@@ -216,6 +227,7 @@ export default function Search() {
   const [sortOrder, setSortOrder] = useState('desc')
   const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(new Set(['rejected', 'pending']))
   const [folderFilter, setFolderFilter] = useState('')
+  const [timeNear, setTimeNear] = useState('')
   const [showFolderPicker, setShowFolderPicker] = useState(false)
   const [activeFilters, setActiveFilters] = useState({
     dateFrom: '',
@@ -225,6 +237,7 @@ export default function Search() {
     exclude: 'rejected,pending',
     folder: '',
     media: 'all',
+    timeNear: '',
   })
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null)
   const [showScrollTop, setShowScrollTop] = useState(false)
@@ -249,7 +262,9 @@ export default function Search() {
         exclude: activeFilters.exclude || undefined,
         folder: activeFilters.folder || undefined,
         media: activeFilters.media !== 'all' ? activeFilters.media : undefined,
-        sort: sortBy,
+        time_near: activeFilters.timeNear || undefined,
+        time_range: activeFilters.timeNear ? 120 : undefined,
+        sort: activeFilters.timeNear ? 'exif_date' : sortBy,
         order: sortOrder,
         page: pageParam,
         limit: PAGE_SIZE,
@@ -289,8 +304,13 @@ export default function Search() {
   }, [query])
 
   const handleFilter = useCallback(() => {
-    setActiveFilters({ dateFrom, dateTo, camera, minQuality, exclude: Array.from(excludeStatuses).join(','), folder: folderFilter, media: mediaType })
-  }, [dateFrom, dateTo, camera, minQuality, excludeStatuses, folderFilter, mediaType])
+    setActiveFilters({ dateFrom, dateTo, camera, minQuality, exclude: Array.from(excludeStatuses).join(','), folder: folderFilter, media: mediaType, timeNear })
+  }, [dateFrom, dateTo, camera, minQuality, excludeStatuses, folderFilter, mediaType, timeNear])
+
+  const handleTimeNear = useCallback((date: string) => {
+    setTimeNear(date)
+    setActiveFilters(f => ({ ...f, timeNear: date }))
+  }, [])
 
   const { data: folders } = useQuery({
     queryKey: ['image-folders'],
@@ -451,6 +471,18 @@ export default function Search() {
         })}
       </div>
 
+      {/* Time proximity filter badge */}
+      {activeFilters.timeNear && (
+        <div className="flex items-center gap-2 mb-2">
+          <span className="bg-cyan-800 text-cyan-100 text-xs px-3 py-1 rounded">
+            Lahella: {activeFilters.timeNear.slice(0, 19).replace('T', ' ')} (±2 min)
+          </span>
+          <button onClick={() => handleTimeNear('')} className="text-xs text-gray-500 hover:text-gray-300">
+            Tyhjenna
+          </button>
+        </div>
+      )}
+
       {/* Folder breadcrumb navigation */}
       <div className="flex flex-wrap items-center gap-1 mb-2">
         <button
@@ -607,6 +639,7 @@ export default function Search() {
           onClose={() => setSelectedImage(null)}
           onStatusChange={handleStatusChange}
           onFolderSelect={handleFolderSelect}
+          onTimeNear={handleTimeNear}
           onPrev={() => {
             const idx = allImages.findIndex(i => i.id === selectedImage.id)
             if (idx > 0) setSelectedImage(allImages[idx - 1])

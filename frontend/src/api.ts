@@ -103,6 +103,8 @@ export async function searchImages(params: {
   exclude?: string
   folder?: string
   media?: string
+  time_near?: string
+  time_range?: number
   sort?: string
   order?: string
   page?: number
@@ -118,6 +120,8 @@ export async function searchImages(params: {
   if (params.exclude) query.set('exclude', params.exclude)
   if (params.folder) query.set('folder', params.folder)
   if (params.media) query.set('media', params.media)
+  if (params.time_near) query.set('time_near', params.time_near)
+  if (params.time_range) query.set('time_range', String(params.time_range))
   if (params.sort) query.set('sort', params.sort)
   if (params.order) query.set('order', params.order)
   if (params.page != null) query.set('page', String(params.page))
@@ -227,6 +231,25 @@ export interface FolderInfo {
 export async function getImageFolders(): Promise<FolderInfo[]> {
   const res = await fetch(`${BASE}/folders`)
   if (!res.ok) throw new Error(`Folders fetch failed: ${res.status}`)
+  return res.json()
+}
+
+export interface StatsData {
+  status_counts: Record<string, number>
+  total: number
+  gps_count: number
+  date_min: string | null
+  date_max: string | null
+  cameras: { model: string; count: number }[]
+  total_size_bytes: number
+  years: { year: string; count: number }[]
+  duplicate_groups: number
+  duplicate_images: number
+}
+
+export async function getStats(): Promise<StatsData> {
+  const res = await fetch(`${BASE}/stats`)
+  if (!res.ok) throw new Error(`Stats failed: ${res.status}`)
   return res.json()
 }
 

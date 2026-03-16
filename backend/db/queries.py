@@ -21,6 +21,8 @@ async def search_images(
     exclude_statuses: Optional[list[str]] = None,
     folder: Optional[str] = None,
     media: Optional[str] = None,
+    time_near: Optional[str] = None,
+    time_range: int = 120,
     sort: str = "created_at",
     order: str = "desc",
     page: int = 1,
@@ -68,6 +70,13 @@ async def search_images(
         from backend.indexer.scanner import VIDEO_EXTENSIONS
         video_exts = [ext.upper().lstrip(".") for ext in VIDEO_EXTENSIONS]
         stmt = stmt.where(Image.format.notin_(video_exts))
+
+    # Time proximity filter
+    if time_near:
+        from datetime import timedelta
+        center = datetime.datetime.fromisoformat(time_near)
+        delta = timedelta(seconds=time_range)
+        stmt = stmt.where(Image.exif_date >= center - delta, Image.exif_date <= center + delta)
 
     # Folder filter (prefix match on file_path)
     if folder:

@@ -80,6 +80,8 @@ async def list_images(
     exclude: Optional[str] = None,
     folder: Optional[str] = None,
     media: Optional[str] = None,
+    time_near: Optional[str] = None,
+    time_range: int = 120,
     sort: str = "created_at",
     order: str = "desc",
     page: int = 1,
@@ -99,6 +101,8 @@ async def list_images(
             exclude_statuses=exclude_list,
             folder=folder,
             media=media,
+            time_near=time_near,
+            time_range=time_range,
             sort=sort,
             order=order,
             page=page,
@@ -197,6 +201,79 @@ async def list_image_folders(request: Request) -> List[Dict[str, Any]]:
         })
 
     return result_list
+
+
+@router.get("/stats")
+async def get_stats(request: Request) -> Dict[str, Any]:
+    """Comprehensive statistics about the image database."""
+    from sqlalchemy import select, func
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        # Status counts
+        status_result = await session.execute(
+            select(Image.status, func.count(Image.id)).group_by(Image.status)
+        )
+        status_counts = dict(status_result.all())
+
+        # GPS stats
+        gps_result = await session.execute(
+            select(func.count(Image.id)).where(Image.exif_gps_lat.is_not(None))
+        )
+        gps_count = gps_result.scalar() or 0
+
+        # Date range
+        date_result = await session.execute(
+            select(func.min(Image.exif_date), func.max(Image.exif_date)).where(Image.exif_date.is_not(None))
+        )
+        date_row = date_result.one()
+
+        # Camera breakdown (top 10)
+        camera_result = await session.execute(
+            select(Image.exif_camera_model, func.count(Image.id))
+            .where(Image.exif_camera_model.is_not(None), Image.status.notin_(["missing", "error"]))
+            .group_by(Image.exif_camera_model)
+            .order_by(func.count(Image.id).desc())
+            .limit(10)
+        )
+        cameras = [{"model": r[0], "count": r[1]} for r in camera_result.all()]
+
+        # Total file size
+        size_result = await session.execute(
+            select(func.sum(Image.file_size)).where(Image.status.notin_(["missing", "error"]))
+        )
+        total_size = size_result.scalar() or 0
+
+        # Year breakdown
+        year_result = await session.execute(
+            select(
+                func.strftime("%Y", Image.exif_date),
+                func.count(Image.id),
+            )
+            .where(Image.exif_date.is_not(None), Image.status.notin_(["missing", "error"]))
+            .group_by(func.strftime("%Y", Image.exif_date))
+            .order_by(func.strftime("%Y", Image.exif_date))
+        )
+        years = [{"year": r[0], "count": r[1]} for r in year_result.all() if r[0]]
+
+        # Duplicate stats
+        from backend.db.models import DuplicateGroup, DuplicateGroupMember
+        dup_result = await session.execute(select(func.count(DuplicateGroup.id)))
+        dup_groups = dup_result.scalar() or 0
+        dup_members_result = await session.execute(select(func.count(DuplicateGroupMember.id)))
+        dup_members = dup_members_result.scalar() or 0
+
+    return {
+        "status_counts": status_counts,
+        "total": sum(status_counts.values()),
+        "gps_count": gps_count,
+        "date_min": date_row[0].isoformat() if date_row[0] else None,
+        "date_max": date_row[1].isoformat() if date_row[1] else None,
+        "cameras": cameras,
+        "total_size_bytes": total_size,
+        "years": years,
+        "duplicate_groups": dup_groups,
+        "duplicate_images": dup_members,
+    }
 
 
 class FolderExcludeRequest(BaseModel):

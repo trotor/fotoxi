@@ -4,6 +4,7 @@ import Search from './pages/Search'
 import Duplicates from './pages/Duplicates'
 import Indexing from './pages/Indexing'
 import Settings from './pages/Settings'
+import Stats from './pages/Stats'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,6 +31,7 @@ export default function App() {
               <NavLink to="/search" className={navLinkClass}>Haku</NavLink>
               <NavLink to="/duplicates" className={navLinkClass}>Duplikaatit</NavLink>
               <NavLink to="/indexing" className={navLinkClass}>Indeksointi</NavLink>
+              <NavLink to="/stats" className={navLinkClass}>Tilastot</NavLink>
               <NavLink to="/settings" className={navLinkClass}>Asetukset</NavLink>
             </div>
           </nav>
@@ -39,6 +41,7 @@ export default function App() {
               <Route path="/search" element={<Search />} />
               <Route path="/duplicates" element={<Duplicates />} />
               <Route path="/indexing" element={<Indexing />} />
+              <Route path="/stats" element={<Stats />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>
