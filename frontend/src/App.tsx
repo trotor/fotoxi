@@ -1,4 +1,5 @@
 import { BrowserRouter, NavLink, Routes, Route, Navigate } from 'react-router-dom'
+import { useI18n } from './i18n/useTranslation'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Search from './pages/Search'
 import Duplicates from './pages/Duplicates'
@@ -19,7 +20,21 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
       : 'text-gray-400 hover:text-white hover:bg-gray-800'
   }`
 
+function LangToggle() {
+  const { lang, setLang } = useI18n()
+  return (
+    <button
+      onClick={() => setLang(lang === 'fi' ? 'en' : 'fi')}
+      className="ml-auto text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+      title={lang === 'fi' ? 'Switch to English' : 'Vaihda suomeksi'}
+    >
+      {lang === 'fi' ? '🇫🇮 FI' : '🇬🇧 EN'}
+    </button>
+  )
+}
+
 export default function App() {
+  const { t } = useI18n()
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
@@ -28,11 +43,12 @@ export default function App() {
             <div className="max-w-7xl mx-auto flex items-center gap-2">
               <img src="/favicon.svg" alt="Fotoxi" className="w-7 h-7" />
               <span className="text-white font-bold text-lg mr-4">Fotoxi</span>
-              <NavLink to="/search" className={navLinkClass}>Haku</NavLink>
-              <NavLink to="/duplicates" className={navLinkClass}>Duplikaatit</NavLink>
-              <NavLink to="/indexing" className={navLinkClass}>Indeksointi</NavLink>
-              <NavLink to="/stats" className={navLinkClass}>Tilastot</NavLink>
-              <NavLink to="/settings" className={navLinkClass}>Asetukset</NavLink>
+              <NavLink to="/search" className={navLinkClass}>{t('nav.search')}</NavLink>
+              <NavLink to="/duplicates" className={navLinkClass}>{t('nav.duplicates')}</NavLink>
+              <NavLink to="/indexing" className={navLinkClass}>{t('nav.indexing')}</NavLink>
+              <NavLink to="/stats" className={navLinkClass}>{t('nav.stats')}</NavLink>
+              <NavLink to="/settings" className={navLinkClass}>{t('nav.settings')}</NavLink>
+              <LangToggle />
             </div>
           </nav>
           <main className="max-w-7xl mx-auto px-4 py-6">

@@ -25,6 +25,7 @@ class Config:
     burst_time_window: float = 5.0
     thread_pool_size: int = 4
     ollama_concurrency: int = 1
+    ui_language: str = "fi"
     server_host: str = "127.0.0.1"
     server_port: int = 8000
     auto_process_on_start: bool = False
