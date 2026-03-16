@@ -1,3 +1,5 @@
+import { useI18n } from '../i18n/useTranslation'
+
 interface FilterBarProps {
   dateFrom: string
   dateTo: string
@@ -18,14 +20,13 @@ export default function FilterBar({
   dateFrom,
   dateTo,
   camera,
-  minQuality,
   total,
   onDateFrom,
   onDateTo,
   onCamera,
-  onMinQuality,
   onFilter,
 }: FilterBarProps) {
+  const { t } = useI18n()
   return (
     <div className="flex flex-wrap items-center gap-3 py-3 border-b border-gray-800">
       <input
@@ -33,7 +34,6 @@ export default function FilterBar({
         value={dateFrom}
         onChange={e => onDateFrom(e.target.value)}
         className={inputClass}
-        placeholder="Alku pvm"
       />
       <span className="text-gray-500 text-sm">–</span>
       <input
@@ -41,32 +41,21 @@ export default function FilterBar({
         value={dateTo}
         onChange={e => onDateTo(e.target.value)}
         className={inputClass}
-        placeholder="Loppu pvm"
       />
       <input
         type="text"
         value={camera}
         onChange={e => onCamera(e.target.value)}
         className={`${inputClass} w-40`}
-        placeholder="Kamera"
-      />
-      <input
-        type="number"
-        value={minQuality}
-        onChange={e => onMinQuality(e.target.value)}
-        className={`${inputClass} w-24`}
-        placeholder="Min laatu"
-        min="0"
-        max="10"
-        step="0.1"
+        placeholder={t('stats.cameras')}
       />
       <button
         onClick={onFilter}
         className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-1.5 rounded transition-colors"
       >
-        Suodata
+        {t('search.filter')}
       </button>
-      <span className="text-gray-400 text-sm ml-auto">{total} kuvaa</span>
+      <span className="text-gray-400 text-sm ml-auto">{total} {t('search.images')}</span>
     </div>
   )
 }
