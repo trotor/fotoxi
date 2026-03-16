@@ -30,15 +30,18 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
       else if (e.key === 'ArrowRight' && onNext) onNext()
       else if (e.key === 'Escape') onClose()
       else if (e.key === 'Enter') {
-        // Keep + next
-        if (!isRejected && image.status !== 'kept') onStatusChange(image.id, 'kept')
-        if (onNext) onNext()
+        // Keep + next (not for already kept)
+        if (!isRejected && image.status !== 'kept') {
+          onStatusChange(image.id, 'kept')
+          if (onNext) onNext()
+        }
       }
       else if (e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault()
-        // Reject + next
+        // Reject + next (not for kept - must un-keep first)
+        if (image.status === 'kept') return // protected
         if (!isRejected) onStatusChange(image.id, 'rejected')
-        else onStatusChange(image.id, 'indexed') // restore if already rejected
+        else onStatusChange(image.id, 'indexed')
         if (onNext) onNext()
       }
     }
@@ -140,24 +143,32 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
               </button>
             )}
             <div className="flex gap-2 flex-shrink-0">
-              {!isRejected ? (
-                <button onClick={() => { onStatusChange(image.id, 'rejected'); onNext?.() }}
-                  className="bg-red-800 hover:bg-red-700 text-red-100 text-xs px-3 py-1 rounded"
-                  title="Backspace">
-                  Havita &amp; seur.
+              {image.status === 'kept' ? (
+                /* Kept: show un-keep button only, no reject */
+                <button onClick={() => onStatusChange(image.id, 'indexed')}
+                  className="bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs px-3 py-1 rounded">
+                  Poista sailytys
                 </button>
-              ) : (
+              ) : isRejected ? (
+                /* Rejected: restore */
                 <button onClick={() => { onStatusChange(image.id, 'indexed'); onNext?.() }}
                   className="bg-green-700 hover:bg-green-600 text-white text-xs px-3 py-1 rounded">
                   Palauta &amp; seur.
                 </button>
-              )}
-              {image.status !== 'kept' && !isRejected && (
-                <button onClick={() => { onStatusChange(image.id, 'kept'); onNext?.() }}
-                  className="bg-green-800 hover:bg-green-700 text-green-100 text-xs px-3 py-1 rounded"
-                  title="Enter">
-                  Sailyta &amp; seur.
-                </button>
+              ) : (
+                /* Normal: keep + reject */
+                <>
+                  <button onClick={() => { onStatusChange(image.id, 'kept'); onNext?.() }}
+                    className="bg-green-800 hover:bg-green-700 text-green-100 text-xs px-3 py-1 rounded"
+                    title="Enter">
+                    Sailyta &amp; seur.
+                  </button>
+                  <button onClick={() => { onStatusChange(image.id, 'rejected'); onNext?.() }}
+                    className="bg-red-800 hover:bg-red-700 text-red-100 text-xs px-3 py-1 rounded"
+                    title="Backspace">
+                    Havita &amp; seur.
+                  </button>
+                </>
               )}
             </div>
           </div>
