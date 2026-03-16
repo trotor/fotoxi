@@ -245,6 +245,7 @@ export interface StatsData {
   years: { year: string; count: number }[]
   duplicate_groups: number
   duplicate_images: number
+  months: { month: string; count: number }[]
 }
 
 export async function getStats(): Promise<StatsData> {

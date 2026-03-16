@@ -255,6 +255,18 @@ async def get_stats(request: Request) -> Dict[str, Any]:
         )
         years = [{"year": r[0], "count": r[1]} for r in year_result.all() if r[0]]
 
+        # Month breakdown (year-month)
+        month_result = await session.execute(
+            select(
+                func.strftime("%Y-%m", Image.exif_date),
+                func.count(Image.id),
+            )
+            .where(Image.exif_date.is_not(None), Image.status.notin_(["missing", "error"]))
+            .group_by(func.strftime("%Y-%m", Image.exif_date))
+            .order_by(func.strftime("%Y-%m", Image.exif_date))
+        )
+        months = [{"month": r[0], "count": r[1]} for r in month_result.all() if r[0]]
+
         # Duplicate stats
         from backend.db.models import DuplicateGroup, DuplicateGroupMember
         dup_result = await session.execute(select(func.count(DuplicateGroup.id)))
@@ -273,6 +285,7 @@ async def get_stats(request: Request) -> Dict[str, Any]:
         "years": years,
         "duplicate_groups": dup_groups,
         "duplicate_images": dup_members,
+        "months": months,
     }
 
 
