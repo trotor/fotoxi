@@ -81,7 +81,16 @@ python fotoxi.py status             # Database summary
 python fotoxi.py duplicates         # Show duplicate groups
 python fotoxi.py backup             # Timestamped DB backup
 python fotoxi.py migrate            # Run database migrations
+python fotoxi.py rebuild-thumbs     # Rebuild thumbnails (fixes EXIF orientation)
 ```
+
+## Web UI Pages
+
+- **Search** — Infinite scroll image grid with filters (date, camera, folder, media type, status), sort options (date, name, size, similarity), folder tree navigation with breadcrumbs, image preview with keyboard shortcuts (Enter=keep, Backspace=reject, arrows=navigate)
+- **Duplicates** — Groups of similar images with one-click resolve. Smart recommendations based on resolution, file size, and source path quality. pHash distance shown.
+- **Indexing** — Live progress with parallel processing stats, folder scan status, activity log. "Process missing" button for metadata-only runs without re-scanning.
+- **Stats** — Interactive dashboard: year/month drill-down timeline, camera breakdown, GPS stats, status summary. All clickable to filter search.
+- **Settings** — Ollama model, AI language, quality scoring toggle, duplicate sensitivity, exclude patterns.
 
 ## How It Works
 
