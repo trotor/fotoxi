@@ -178,7 +178,7 @@ export default function Indexing() {
             </div>
           ) : (
             <div className="flex justify-between text-xs text-gray-400">
-              <span>{status.processed} / {status.total} käsitelty</span>
+              <span>{status.processed} / {status.total} {t('common.processed')}</span>
               <span>{pct}%</span>
             </div>
           )}
@@ -231,7 +231,7 @@ export default function Indexing() {
                       if (secs < 60) return `${Math.round(secs)}s`
                       if (secs < 3600) return `${Math.round(secs / 60)} min`
                       return `${(secs / 3600).toFixed(1)} h`
-                    })()} jäljellä
+                    })()} {t('common.remaining')}
                   </span>
                 </>
               )}
@@ -305,7 +305,7 @@ export default function Indexing() {
         {status.running && status.total > 0 && (
           <div className="flex items-center gap-4 text-xs text-gray-400 bg-gray-800/50 rounded p-2">
             <span>{phaseLabel}: {status.processed}/{status.total}</span>
-            <span>Virheet: {status.errors}</span>
+            <span>{t('common.errors')}: {status.errors}</span>
             {status.speed > 0 && status.phase === 'metadata' && (
               <span>{status.speed.toFixed(1)} kuvaa/s ({(1000 / status.speed).toFixed(0)} ms/kuva)</span>
             )}
@@ -323,7 +323,7 @@ export default function Indexing() {
                   if (secs < 60) return `${Math.round(secs)}s`
                   if (secs < 3600) return `${Math.round(secs / 60)} min`
                   return `${(secs / 3600).toFixed(1)} h`
-                })()} jäljellä
+                })()} {t('common.remaining')}
               </span>
             )}
           </div>
@@ -333,7 +333,7 @@ export default function Indexing() {
       {/* Live log */}
       {status.running && status.recent_log && status.recent_log.length > 0 && (
         <div className="bg-gray-900 rounded-lg p-3">
-          <p className="text-xs text-gray-500 mb-1">Loki:</p>
+          <p className="text-xs text-gray-500 mb-1">{t('common.log')}</p>
           <div className="font-mono text-xs text-gray-400 space-y-0.5 max-h-40 overflow-y-auto">
             {status.recent_log.slice().reverse().map((line, i) => (
               <div key={i} className={
@@ -406,7 +406,7 @@ export default function Indexing() {
               )
             })}
             {sourceDirs.length === 0 && (
-              <li className="text-gray-500 text-sm">Ei kansioita.</li>
+              <li className="text-gray-500 text-sm">{t('common.no_folders')}</li>
             )}
           </ul>
         )}

@@ -92,5 +92,19 @@
   "settings.loose": "Loose",
   "settings.save": "Save settings",
   "settings.saved": "Saved!",
-  "common.back_to_years": "back to years"
+  "common.back_to_years": "back to years",
+  "common.processed": "processed",
+  "common.remaining": "remaining",
+  "common.errors": "Errors",
+  "common.speed": "speed",
+  "common.no_folders": "No folders.",
+  "common.quick_add": "Quick add:",
+  "common.all_added": "All cloud folders added",
+  "common.log": "Log:",
+  "common.saving": "Saving...",
+  "common.confirm_reject": "Confirm (reject",
+  "dup.visual_copy": "Visual copy",
+  "dup.burst": "Burst shot",
+  "dup.burst_visual": "Copy + burst",
+  "dup.keep_recommended_full": "Keep recommended & next"
 }

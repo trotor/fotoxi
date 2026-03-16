@@ -42,7 +42,10 @@ export default function App() {
           <nav className="bg-gray-900 border-b border-gray-700 px-4 py-3">
             <div className="max-w-7xl mx-auto flex items-center gap-2">
               <img src="/favicon.svg" alt="Fotoxi" className="w-7 h-7" />
-              <span className="text-white font-bold text-lg mr-4">Fotoxi</span>
+              <div className="mr-4">
+                <span className="text-white font-bold text-lg">Fotoxi</span>
+                <span className="text-gray-600 text-xs ml-1">v0.2.0</span>
+              </div>
               <NavLink to="/search" className={navLinkClass}>{t('nav.search')}</NavLink>
               <NavLink to="/duplicates" className={navLinkClass}>{t('nav.duplicates')}</NavLink>
               <NavLink to="/indexing" className={navLinkClass}>{t('nav.indexing')}</NavLink>

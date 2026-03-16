@@ -16,10 +16,9 @@ function hammingDistance(a: string | null, b: string | null): number | null {
   return dist
 }
 
-const MATCH_TYPE_LABELS: Record<string, string> = {
-  phash: 'Visuaalinen kopio',
-  burst: 'Sarjakuvaus',
-  'phash+burst': 'Kopio + sarjakuvaus',
+function useMatchLabels() {
+  const { t } = useI18n()
+  return { phash: t('dup.visual_copy'), burst: t('dup.burst'), 'phash+burst': t('dup.burst_visual') } as Record<string, string>
 }
 
 function folderOf(path: string | null | undefined): string {
@@ -119,6 +118,7 @@ export default function Duplicates() {
   }, [members])
 
   const { t } = useI18n()
+  const MATCH_TYPE_LABELS = useMatchLabels()
 
   if (isLoading) return <div className="text-center py-12 text-gray-400">{t('search.loading')}</div>
   if (isError) return <div className="text-center py-12 text-red-400">Error</div>
@@ -230,7 +230,7 @@ export default function Duplicates() {
     <div className="space-y-4 max-w-4xl mx-auto p-4">
       {/* Progress */}
       <div className="flex justify-between items-center text-sm text-gray-400">
-        <span>Ryhmä {(dupPage - 1) * 20 + groupIndex + 1} / {totalGroups}</span>
+        <span>{t('dup.group')} {(dupPage - 1) * 20 + groupIndex + 1} / {totalGroups}</span>
         <span className="bg-gray-800 px-2 py-0.5 rounded text-xs">
           {MATCH_TYPE_LABELS[group.match_type] ?? group.match_type}
         </span>
@@ -260,8 +260,8 @@ export default function Duplicates() {
         className="w-full bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-sm px-4 py-3 rounded-lg transition-colors font-medium"
       >
         {bestImg
-          ? `Säilytä suositeltu (${bestImg.file_name.slice(0, 30)}${bestImg.file_name.length > 30 ? '...' : ''} · ${(bestImg.file_size / 1024 / 1024).toFixed(1)} MB) & seuraava`
-          : 'Säilytä suositeltu & seuraava'}
+          ? `${t('dup.keep_recommended')} (${bestImg.file_name.slice(0, 30)}${bestImg.file_name.length > 30 ? '...' : ''} · ${(bestImg.file_size / 1024 / 1024).toFixed(1)} MB)`
+          : t('dup.keep_recommended_full')}
       </button>
 
       {/* Other actions */}
@@ -412,7 +412,7 @@ export default function Duplicates() {
             disabled={resolveMutation.isPending}
             className="px-4 py-2 bg-green-700 hover:bg-green-600 disabled:opacity-40 rounded text-sm ml-auto"
           >
-            {resolveMutation.isPending ? 'Tallennetaan...' : `Vahvista (hylkää ${groupRejected.size})`}
+            {resolveMutation.isPending ? t('common.saving') : `${t('dup.confirm')} (${groupRejected.size})`}
           </button>
         )}
       </div>

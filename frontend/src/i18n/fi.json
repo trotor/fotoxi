@@ -92,5 +92,19 @@
   "settings.loose": "Loysa",
   "settings.save": "Tallenna asetukset",
   "settings.saved": "Tallennettu!",
-  "common.back_to_years": "takaisin vuosiin"
+  "common.back_to_years": "takaisin vuosiin",
+  "common.processed": "kasitelty",
+  "common.remaining": "jaljella",
+  "common.errors": "Virheet",
+  "common.speed": "nopeus",
+  "common.no_folders": "Ei kansioita.",
+  "common.quick_add": "Pikalisays:",
+  "common.all_added": "Kaikki pilvikansiot lisatty",
+  "common.log": "Loki:",
+  "common.saving": "Tallennetaan...",
+  "common.confirm_reject": "Vahvista (hylkaa",
+  "dup.visual_copy": "Visuaalinen kopio",
+  "dup.burst": "Sarjakuvaus",
+  "dup.burst_visual": "Kopio + sarjakuvaus",
+  "dup.keep_recommended_full": "Sailyta suositeltu & seuraava"
 }

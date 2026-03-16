@@ -66,14 +66,14 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
       {onPrev && (
         <button onClick={(e) => { e.stopPropagation(); onPrev() }}
           className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white w-10 h-16 rounded flex items-center justify-center text-xl z-10">
-          {'<'}
+          ◀
         </button>
       )}
       {/* Next arrow */}
       {onNext && (
         <button onClick={(e) => { e.stopPropagation(); onNext() }}
           className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white w-10 h-16 rounded flex items-center justify-center text-xl z-10">
-          {'>'}
+          ▶
         </button>
       )}
 
@@ -93,7 +93,7 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
           )}
           <button onClick={onClose}
             className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/80">
-            X
+            ✕
           </button>
         </div>
 
@@ -210,7 +210,7 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
             className={`absolute top-1 left-1 ${badge.bg} ${badge.text} text-xs px-1.5 py-0.5 rounded hover:opacity-70 transition-opacity cursor-pointer`}
             title="Klikkaa poistaaksesi sailytys-merkinta"
           >
-            {badge.label} x
+            {badge.label} ✕
           </button>
         ) : (
           <div className={`absolute top-1 left-1 ${badge.bg} ${badge.text} text-xs px-1.5 py-0.5 rounded`}>
@@ -230,9 +230,9 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
           <button
             onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, 'kept') }}
             className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-green-600 hover:bg-green-500 text-white shadow-lg hover:scale-110 transition-all"
-            title="Sailyta (Enter)"
+            title="Keep (Enter)"
           >
-            v
+            ✓
           </button>
         )}
         {/* Reject button - NOT shown for kept images (must un-keep first) */}
@@ -240,9 +240,9 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
           <button
             onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, 'rejected') }}
             className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-red-600 hover:bg-red-500 text-white shadow-lg hover:scale-110 transition-all"
-            title="Havita (Backspace)"
+            title="Reject (Backspace)"
           >
-            x
+            ✕
           </button>
         )}
         {/* Restore button - for rejected images */}
@@ -250,9 +250,9 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
           <button
             onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, 'indexed') }}
             className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-blue-500 hover:bg-blue-400 text-white shadow-lg hover:scale-110 transition-all"
-            title="Palauta"
+            title="Restore"
           >
-            +
+            ↩
           </button>
         )}
       </div>
@@ -520,7 +520,7 @@ export default function Search() {
                 : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
             }`}
           >
-            {s.label} {sortBy === s.key ? (sortOrder === 'desc' ? 'v' : '^') : ''}
+            {s.label} {sortBy === s.key ? (sortOrder === 'desc' ? '▼' : '▲') : ''}
           </button>
         ))}
       </div>
@@ -588,7 +588,7 @@ export default function Search() {
           onClick={() => setShowFolderPicker(!showFolderPicker)}
           className="text-xs text-gray-500 hover:text-gray-300 mr-1"
         >
-          {showFolderPicker ? 'v' : '>'} Kansiot
+          {showFolderPicker ? '▼' : '▶'} {t('search.folders')}
         </button>
         {folderFilter && (() => {
           const home = folderFilter.split('/').findIndex(p => p === 'Users') + 2
@@ -668,7 +668,7 @@ export default function Search() {
                       onClick={(e) => { e.stopPropagation(); toggleExpand(f.path) }}
                       className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-gray-200 flex-shrink-0"
                     >
-                      {isExpanded ? 'v' : '>'}
+                      {isExpanded ? '▾' : '▸'}
                     </button>
                   ) : (
                     <span className="w-5 h-5 flex-shrink-0" />
