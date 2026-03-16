@@ -39,20 +39,20 @@ export default function Stats() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-gray-900 rounded-lg p-4 text-center">
           <p className="text-3xl font-bold text-gray-100">{stats.total.toLocaleString()}</p>
-          <p className="text-xs text-gray-400 mt-1">Tiedostoja</p>
+          <p className="text-xs text-gray-400 mt-1">{t('stats.files')}</p>
         </div>
         <div className="bg-gray-900 rounded-lg p-4 text-center cursor-pointer hover:bg-gray-800"
           onClick={() => goSearch({})}>
           <p className="text-3xl font-bold text-green-300">{active.toLocaleString()}</p>
-          <p className="text-xs text-green-400 mt-1">Aktiivisia</p>
+          <p className="text-xs text-green-400 mt-1">{t('stats.active')}</p>
         </div>
         <div className="bg-gray-900 rounded-lg p-4 text-center">
           <p className="text-3xl font-bold text-blue-300">{stats.gps_count.toLocaleString()}</p>
-          <p className="text-xs text-blue-400 mt-1">GPS-paikannettuja</p>
+          <p className="text-xs text-blue-400 mt-1">{t('stats.gps')}</p>
         </div>
         <div className="bg-gray-900 rounded-lg p-4 text-center">
           <p className="text-3xl font-bold text-gray-200">{formatSize(stats.total_size_bytes)}</p>
-          <p className="text-xs text-gray-400 mt-1">Yhteiskoko</p>
+          <p className="text-xs text-gray-400 mt-1">{t('stats.total_size')}</p>
         </div>
       </div>
 
@@ -60,22 +60,22 @@ export default function Stats() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="bg-gray-900 rounded-lg p-4 cursor-pointer hover:bg-gray-800"
           onClick={() => navigate('/duplicates')}>
-          <h3 className="text-sm font-medium text-gray-300 mb-2">Duplikaatit</h3>
+          <h3 className="text-sm font-medium text-gray-300 mb-2">{t('stats.duplicates')}</h3>
           <p className="text-2xl font-bold text-yellow-300">{stats.duplicate_groups.toLocaleString()}</p>
-          <p className="text-xs text-gray-500">ryhmaa ({stats.duplicate_images.toLocaleString()} kuvaa)</p>
+          <p className="text-xs text-gray-500">{t('stats.groups')} ({stats.duplicate_images.toLocaleString()} {t('dup.images')})</p>
         </div>
         <div className="bg-gray-900 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-300 mb-2">Ajanjakso</h3>
+          <h3 className="text-sm font-medium text-gray-300 mb-2">{t('stats.period')}</h3>
           <p className="text-sm text-gray-200">
             {stats.date_min?.slice(0, 10) || '?'} — {stats.date_max?.slice(0, 10) || '?'}
           </p>
-          <p className="text-xs text-gray-500 mt-1">{stats.years.length} vuotta</p>
+          <p className="text-xs text-gray-500 mt-1">{stats.years.length} {t('stats.years')}</p>
         </div>
       </div>
 
       {/* Timeline - years always visible, months expand below */}
       <div className="bg-gray-900 rounded-lg p-4 space-y-3">
-        <h3 className="text-sm font-medium text-gray-300">Aikajana</h3>
+        <h3 className="text-sm font-medium text-gray-300">{t('stats.timeline')}</h3>
 
         {/* Year bars - always visible */}
         <div className="flex items-end gap-1 h-28">
@@ -124,7 +124,7 @@ export default function Stats() {
                   onClick={() => goSearch({ date_from: `${expandedYear}-01-01`, date_to: `${expandedYear}-12-31` })}
                   className="text-xs text-blue-400 hover:text-blue-300"
                 >
-                  Nayta koko vuosi
+                  {t('stats.show_year')}
                 </button>
               </div>
               <div className="flex items-end gap-2 h-24">
@@ -154,7 +154,7 @@ export default function Stats() {
 
       {/* Cameras - clickable */}
       <div className="bg-gray-900 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">Kamerat (klikkaa suodattaaksesi)</h3>
+        <h3 className="text-sm font-medium text-gray-300 mb-3">{t('stats.cameras')}</h3>
         <div className="space-y-2">
           {camerasToShow.map(cam => {
             const pct = active > 0 ? (cam.count / active) * 100 : 0
@@ -174,14 +174,14 @@ export default function Stats() {
         {stats.cameras.length > 10 && (
           <button onClick={() => setShowAllCameras(!showAllCameras)}
             className="text-xs text-blue-400 hover:text-blue-300 mt-2">
-            {showAllCameras ? 'Nayta vahemman' : `Nayta kaikki (${stats.cameras.length})`}
+            {showAllCameras ? t('stats.show_less') : `${t('stats.show_all')} (${stats.cameras.length})`}
           </button>
         )}
       </div>
 
       {/* Status breakdown */}
       <div className="bg-gray-900 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">Tila</h3>
+        <h3 className="text-sm font-medium text-gray-300 mb-3">{t('stats.status')}</h3>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
           {Object.entries(stats.status_counts).sort(([,a],[,b]) => b - a).map(([status, count]) => (
             <div key={status} className="text-center cursor-pointer hover:bg-gray-800 rounded p-2 transition-colors"

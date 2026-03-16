@@ -173,7 +173,7 @@ export default function Indexing() {
         <div className="space-y-1">
           {status.phase === 'scanning' ? (
             <div className="flex justify-between text-xs text-gray-400">
-              <span>Löydetty {status.processed} tiedostoa...</span>
+              <span>{status.processed} {t('stats.files')}...</span>
               <span className="animate-pulse">Skannataan</span>
             </div>
           ) : (
