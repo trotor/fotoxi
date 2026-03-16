@@ -23,6 +23,9 @@ async def search_images(
     media: Optional[str] = None,
     time_near: Optional[str] = None,
     time_range: int = 120,
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
+    radius: Optional[float] = None,
     sort: str = "created_at",
     order: str = "desc",
     page: int = 1,
@@ -77,6 +80,19 @@ async def search_images(
         center = datetime.datetime.fromisoformat(time_near)
         delta = timedelta(seconds=time_range)
         stmt = stmt.where(Image.exif_date >= center - delta, Image.exif_date <= center + delta)
+
+    # GPS proximity filter (bounding box approximation)
+    if lat is not None and lon is not None and radius is not None:
+        # ~111 km per degree latitude, longitude varies by cos(lat)
+        import math
+        lat_delta = radius / 111.0
+        lon_delta = radius / (111.0 * math.cos(math.radians(lat)))
+        stmt = stmt.where(
+            Image.exif_gps_lat >= lat - lat_delta,
+            Image.exif_gps_lat <= lat + lat_delta,
+            Image.exif_gps_lon >= lon - lon_delta,
+            Image.exif_gps_lon <= lon + lon_delta,
+        )
 
     # Folder filter (prefix match on file_path)
     if folder:

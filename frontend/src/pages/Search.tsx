@@ -15,9 +15,10 @@ function formatBytes(b: number | null | undefined): string {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNear, onPrev, onNext }: {
+function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNear, onLocationNear, onPrev, onNext }: {
   image: ImageData; onClose: () => void; onStatusChange: (id: number, status: string) => void;
   onFolderSelect: (folder: string) => void; onTimeNear?: (date: string) => void;
+  onLocationNear?: (lat: number, lon: number) => void;
   onPrev?: () => void; onNext?: () => void;
 }) {
   const { t } = useI18n()
@@ -63,6 +64,8 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
   if (image.exif_iso != null) exifParts.push(`ISO ${image.exif_iso}`)
   if (image.exif_exposure) exifParts.push(`${image.exif_exposure}s`)
   if (image.exif_focal_length != null) exifParts.push(`${image.exif_focal_length}mm`)
+  const hasGps = image.exif_gps_lat != null && image.exif_gps_lon != null
+  if (hasGps) exifParts.push('📍')
 
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center" onClick={onClose}>
@@ -121,6 +124,14 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
                   className="text-xs text-cyan-400 hover:text-cyan-300 flex-shrink-0"
                 >
                   [{t('search.nearby_time')}]
+                </button>
+              )}
+              {hasGps && onLocationNear && (
+                <button
+                  onClick={() => { onLocationNear(image.exif_gps_lat!, image.exif_gps_lon!); onClose() }}
+                  className="text-xs text-green-400 hover:text-green-300 flex-shrink-0"
+                >
+                  [📍 nearby]
                 </button>
               )}
             </div>
@@ -222,11 +233,15 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
           </div>
         )
       )}
-      {image.format && ['MP4','MOV','AVI','MKV','WMV','FLV','WEBM','M4V','MPG','MPEG','3GP','MTS'].includes(image.format.toUpperCase()) && (
-        <div className="absolute bottom-1 left-1 bg-black/70 text-blue-300 text-xs px-1.5 py-0.5 rounded pointer-events-none">
-          Video
-        </div>
-      )}
+      {/* Bottom-left badges */}
+      <div className="absolute bottom-1 left-1 flex gap-1 pointer-events-none">
+        {image.format && ['MP4','MOV','AVI','MKV','WMV','FLV','WEBM','M4V','MPG','MPEG','3GP','MTS'].includes(image.format.toUpperCase()) && (
+          <span className="bg-black/70 text-blue-300 text-xs px-1.5 py-0.5 rounded">▶</span>
+        )}
+        {image.exif_gps_lat != null && image.exif_gps_lon != null && (
+          <span className="bg-black/70 text-green-300 text-xs px-1 py-0.5 rounded">📍</span>
+        )}
+      </div>
       {/* Quick action buttons on hover */}
       <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
         {/* Keep button - only for non-kept, non-rejected */}
@@ -295,7 +310,9 @@ export default function Search() {
   const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(new Set(['rejected', 'pending']))
   const [folderFilter, setFolderFilter] = useState('')
   const [timeNear, setTimeNear] = useState('')
-  const [timeRange, setTimeRange] = useState(300) // seconds, default ±5min
+  const [timeRange, setTimeRange] = useState(300)
+  const [locationNear, setLocationNear] = useState<{ lat: number; lon: number } | null>(null)
+  const [locationRadius, setLocationRadius] = useState(1) // km
   const [showFolderPicker, setShowFolderPicker] = useState(false)
   const [activeFilters, setActiveFilters] = useState({
     dateFrom: '',
@@ -334,7 +351,7 @@ export default function Search() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['search', submittedQuery, activeFilters, sortBy, sortOrder, timeRange],
+    queryKey: ['search', submittedQuery, activeFilters, sortBy, sortOrder, timeRange, locationNear, locationRadius],
     queryFn: ({ pageParam = 1 }) =>
       searchImages({
         q: submittedQuery || undefined,
@@ -348,6 +365,9 @@ export default function Search() {
         media: activeFilters.media !== 'all' ? activeFilters.media : undefined,
         time_near: activeFilters.timeNear || undefined,
         time_range: activeFilters.timeNear ? timeRange : undefined,
+        lat: locationNear?.lat,
+        lon: locationNear?.lon,
+        radius: locationNear ? locationRadius : undefined,
         sort: activeFilters.timeNear ? 'exif_date' : sortBy,
         order: sortOrder,
         page: pageParam,
@@ -394,6 +414,10 @@ export default function Search() {
   const handleTimeNear = useCallback((date: string) => {
     setTimeNear(date)
     setActiveFilters(f => ({ ...f, timeNear: date }))
+  }, [])
+
+  const handleLocationNear = useCallback((lat: number, lon: number) => {
+    setLocationNear({ lat, lon })
   }, [])
 
   const { data: folders } = useQuery({
@@ -588,6 +612,37 @@ export default function Search() {
         </div>
       )}
 
+      {/* Location proximity filter */}
+      {locationNear && (
+        <div className="flex flex-wrap items-center gap-2 mb-2 bg-green-900/20 border border-green-800/30 rounded-lg px-3 py-2">
+          <span className="text-green-200 text-xs">
+            📍 {locationNear.lat.toFixed(4)}, {locationNear.lon.toFixed(4)}
+          </span>
+          <div className="flex items-center gap-1">
+            {[
+              { label: '100m', value: 0.1 },
+              { label: '500m', value: 0.5 },
+              { label: '1 km', value: 1 },
+              { label: '5 km', value: 5 },
+              { label: '20 km', value: 20 },
+            ].map(opt => (
+              <button key={opt.value}
+                onClick={() => setLocationRadius(opt.value)}
+                className={`text-xs px-2 py-0.5 rounded transition-colors ${
+                  locationRadius === opt.value
+                    ? 'bg-green-700 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => setLocationNear(null)} className="text-xs text-gray-500 hover:text-gray-300 ml-auto">
+            {t('search.clear')}
+          </button>
+        </div>
+      )}
+
       {/* Folder breadcrumb navigation */}
       <div className="flex flex-wrap items-center gap-1 mb-2">
         <button
@@ -745,6 +800,7 @@ export default function Search() {
           onStatusChange={handleStatusChange}
           onFolderSelect={handleFolderSelect}
           onTimeNear={handleTimeNear}
+          onLocationNear={handleLocationNear}
           onPrev={() => {
             const idx = allImages.findIndex(i => i.id === selectedImage.id)
             if (idx > 0) setSelectedImage(allImages[idx - 1])

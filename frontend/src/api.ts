@@ -105,6 +105,9 @@ export async function searchImages(params: {
   media?: string
   time_near?: string
   time_range?: number
+  lat?: number
+  lon?: number
+  radius?: number
   sort?: string
   order?: string
   page?: number
@@ -122,6 +125,9 @@ export async function searchImages(params: {
   if (params.media) query.set('media', params.media)
   if (params.time_near) query.set('time_near', params.time_near)
   if (params.time_range) query.set('time_range', String(params.time_range))
+  if (params.lat != null) query.set('lat', String(params.lat))
+  if (params.lon != null) query.set('lon', String(params.lon))
+  if (params.radius != null) query.set('radius', String(params.radius))
   if (params.sort) query.set('sort', params.sort)
   if (params.order) query.set('order', params.order)
   if (params.page != null) query.set('page', String(params.page))
