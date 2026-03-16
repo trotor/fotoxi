@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { getStats } from '../api'
 
 function formatSize(bytes: number): string {
@@ -12,11 +14,21 @@ export default function Stats() {
     queryKey: ['stats'],
     queryFn: getStats,
   })
+  const navigate = useNavigate()
+  const [showAllCameras, setShowAllCameras] = useState(false)
 
   if (isLoading || !stats) return <div className="text-gray-400 py-12 text-center">Ladataan...</div>
 
   const active = (stats.status_counts.indexed || 0) + (stats.status_counts.kept || 0)
   const maxYear = Math.max(...stats.years.map(y => y.count), 1)
+
+  // Navigate to search with filters
+  const goSearch = (params: Record<string, string>) => {
+    const qs = new URLSearchParams(params).toString()
+    navigate(`/search?${qs}`)
+  }
+
+  const camerasToShow = showAllCameras ? stats.cameras : stats.cameras.slice(0, 10)
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -26,7 +38,8 @@ export default function Stats() {
           <p className="text-3xl font-bold text-gray-100">{stats.total.toLocaleString()}</p>
           <p className="text-xs text-gray-400 mt-1">Tiedostoja</p>
         </div>
-        <div className="bg-gray-900 rounded-lg p-4 text-center">
+        <div className="bg-gray-900 rounded-lg p-4 text-center cursor-pointer hover:bg-gray-800"
+          onClick={() => goSearch({})}>
           <p className="text-3xl font-bold text-green-300">{active.toLocaleString()}</p>
           <p className="text-xs text-green-400 mt-1">Aktiivisia</p>
         </div>
@@ -42,7 +55,8 @@ export default function Stats() {
 
       {/* Duplicates + date range */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bg-gray-900 rounded-lg p-4">
+        <div className="bg-gray-900 rounded-lg p-4 cursor-pointer hover:bg-gray-800"
+          onClick={() => navigate('/duplicates')}>
           <h3 className="text-sm font-medium text-gray-300 mb-2">Duplikaatit</h3>
           <p className="text-2xl font-bold text-yellow-300">{stats.duplicate_groups.toLocaleString()}</p>
           <p className="text-xs text-gray-500">ryhmaa ({stats.duplicate_images.toLocaleString()} kuvaa)</p>
@@ -56,18 +70,19 @@ export default function Stats() {
         </div>
       </div>
 
-      {/* Timeline */}
+      {/* Timeline - clickable bars */}
       <div className="bg-gray-900 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">Aikajana</h3>
+        <h3 className="text-sm font-medium text-gray-300 mb-3">Aikajana (klikkaa vuotta)</h3>
         <div className="flex items-end gap-1 h-32">
           {stats.years.map(y => (
-            <div key={y.year} className="flex-1 flex flex-col items-center justify-end h-full min-w-0">
+            <div key={y.year} className="flex-1 flex flex-col items-center justify-end h-full min-w-0 cursor-pointer group"
+              onClick={() => goSearch({ date_from: `${y.year}-01-01`, date_to: `${y.year}-12-31` })}
+              title={`${y.year}: ${y.count} kuvaa`}>
               <div
-                className="w-full bg-blue-600 rounded-t min-h-[2px]"
+                className="w-full bg-blue-600 group-hover:bg-blue-400 rounded-t min-h-[2px] transition-colors"
                 style={{ height: `${(y.count / maxYear) * 100}%` }}
-                title={`${y.year}: ${y.count}`}
               />
-              <span className="text-xs text-gray-600 mt-1 truncate w-full text-center">
+              <span className="text-xs text-gray-600 group-hover:text-gray-300 mt-1 truncate w-full text-center transition-colors">
                 {y.year?.slice(2)}
               </span>
             </div>
@@ -75,15 +90,17 @@ export default function Stats() {
         </div>
       </div>
 
-      {/* Cameras */}
+      {/* Cameras - clickable */}
       <div className="bg-gray-900 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">Kamerat</h3>
+        <h3 className="text-sm font-medium text-gray-300 mb-3">Kamerat (klikkaa suodattaaksesi)</h3>
         <div className="space-y-2">
-          {stats.cameras.map(cam => {
+          {camerasToShow.map(cam => {
             const pct = active > 0 ? (cam.count / active) * 100 : 0
             return (
-              <div key={cam.model} className="flex items-center gap-3">
-                <span className="text-xs text-gray-300 w-40 truncate flex-shrink-0">{cam.model}</span>
+              <div key={cam.model}
+                className="flex items-center gap-3 cursor-pointer hover:bg-gray-800 rounded px-1 py-0.5 transition-colors"
+                onClick={() => goSearch({ camera: cam.model })}>
+                <span className="text-xs text-gray-300 w-48 truncate flex-shrink-0">{cam.model}</span>
                 <div className="flex-1 bg-gray-800 rounded h-4 overflow-hidden">
                   <div className="bg-blue-700 h-full rounded" style={{ width: `${pct}%` }} />
                 </div>
@@ -92,6 +109,12 @@ export default function Stats() {
             )
           })}
         </div>
+        {stats.cameras.length > 10 && (
+          <button onClick={() => setShowAllCameras(!showAllCameras)}
+            className="text-xs text-blue-400 hover:text-blue-300 mt-2">
+            {showAllCameras ? 'Nayta vahemman' : `Nayta kaikki (${stats.cameras.length})`}
+          </button>
+        )}
       </div>
 
       {/* Status breakdown */}
@@ -99,7 +122,8 @@ export default function Stats() {
         <h3 className="text-sm font-medium text-gray-300 mb-3">Tila</h3>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
           {Object.entries(stats.status_counts).sort(([,a],[,b]) => b - a).map(([status, count]) => (
-            <div key={status} className="text-center">
+            <div key={status} className="text-center cursor-pointer hover:bg-gray-800 rounded p-2 transition-colors"
+              onClick={() => goSearch({ status })}>
               <p className="text-lg font-bold text-gray-200">{count.toLocaleString()}</p>
               <p className="text-xs text-gray-500">{status}</p>
             </div>

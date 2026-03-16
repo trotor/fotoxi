@@ -233,7 +233,7 @@ async def get_stats(request: Request) -> Dict[str, Any]:
             .where(Image.exif_camera_model.is_not(None), Image.status.notin_(["missing", "error"]))
             .group_by(Image.exif_camera_model)
             .order_by(func.count(Image.id).desc())
-            .limit(10)
+            .limit(50)
         )
         cameras = [{"model": r[0], "count": r[1]} for r in camera_result.all()]
 

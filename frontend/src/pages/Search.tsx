@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImageData } from '../api'
 import { searchImages, thumbUrl, fullUrl, updateImageStatus, getImageFolders, excludeFolder } from '../api'
@@ -216,25 +217,37 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
 }
 
 export default function Search() {
+  const [searchParams] = useSearchParams()
+
+  // Read initial filters from URL (from Stats page links)
+  const urlDateFrom = searchParams.get('date_from') || ''
+  const urlDateTo = searchParams.get('date_to') || ''
+  const urlCamera = searchParams.get('camera') || ''
+  const urlStatus = searchParams.get('status') || ''
+
   const [query, setQuery] = useState('')
   const [submittedQuery, setSubmittedQuery] = useState('')
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [camera, setCamera] = useState('')
+  const [dateFrom, setDateFrom] = useState(urlDateFrom)
+  const [dateTo, setDateTo] = useState(urlDateTo)
+  const [camera, setCamera] = useState(urlCamera)
   const [minQuality, setMinQuality] = useState('')
   const [mediaType, setMediaType] = useState<'all' | 'photo' | 'video'>('all')
   const [sortBy, setSortBy] = useState('exif_date')
   const [sortOrder, setSortOrder] = useState('desc')
-  const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(new Set(['rejected', 'pending']))
+  const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(() => {
+    if (urlStatus) return new Set<string>()  // Show specific status, no excludes
+    return new Set(['rejected', 'pending'])
+  })
   const [folderFilter, setFolderFilter] = useState('')
   const [timeNear, setTimeNear] = useState('')
   const [showFolderPicker, setShowFolderPicker] = useState(false)
   const [activeFilters, setActiveFilters] = useState({
-    dateFrom: '',
-    dateTo: '',
-    camera: '',
+    dateFrom: urlDateFrom,
+    dateTo: urlDateTo,
+    camera: urlCamera,
     minQuality: '',
-    exclude: 'rejected,pending',
+    status: urlStatus,
+    exclude: urlStatus ? '' : 'rejected,pending',
     folder: '',
     media: 'all',
     timeNear: '',
@@ -259,7 +272,8 @@ export default function Search() {
         date_to: activeFilters.dateTo || undefined,
         camera: activeFilters.camera || undefined,
         min_quality: activeFilters.minQuality ? Number(activeFilters.minQuality) : undefined,
-        exclude: activeFilters.exclude || undefined,
+        status: activeFilters.status || undefined,
+        exclude: activeFilters.status ? undefined : (activeFilters.exclude || undefined),
         folder: activeFilters.folder || undefined,
         media: activeFilters.media !== 'all' ? activeFilters.media : undefined,
         time_near: activeFilters.timeNear || undefined,
@@ -304,7 +318,7 @@ export default function Search() {
   }, [query])
 
   const handleFilter = useCallback(() => {
-    setActiveFilters({ dateFrom, dateTo, camera, minQuality, exclude: Array.from(excludeStatuses).join(','), folder: folderFilter, media: mediaType, timeNear })
+    setActiveFilters({ dateFrom, dateTo, camera, minQuality, status: '', exclude: Array.from(excludeStatuses).join(','), folder: folderFilter, media: mediaType, timeNear })
   }, [dateFrom, dateTo, camera, minQuality, excludeStatuses, folderFilter, mediaType, timeNear])
 
   const handleTimeNear = useCallback((date: string) => {
