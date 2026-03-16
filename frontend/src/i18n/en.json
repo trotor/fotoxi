@@ -106,5 +106,17 @@
   "dup.visual_copy": "Visual copy",
   "dup.burst": "Burst shot",
   "dup.burst_visual": "Copy + burst",
-  "dup.keep_recommended_full": "Keep recommended & next"
+  "dup.keep_recommended_full": "Keep recommended & next",
+  "idx.scanning_anim": "Scanning",
+  "idx.active": "Active",
+  "idx.indexed_label": "Indexed",
+  "idx.kept_label": "Kept",
+  "idx.ai_desc": "AI desc",
+  "idx.missing_label": "missing",
+  "idx.videos_label": "Videos",
+  "idx.pending_label": "pending",
+  "idx.file_types": "File types",
+  "idx.imgs_per_s": "img/s",
+  "idx.ms_per_img": "ms/img",
+  "idx.s_per_img": "s/img"
 }

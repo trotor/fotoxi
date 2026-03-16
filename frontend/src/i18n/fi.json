@@ -106,5 +106,17 @@
   "dup.visual_copy": "Visuaalinen kopio",
   "dup.burst": "Sarjakuvaus",
   "dup.burst_visual": "Kopio + sarjakuvaus",
-  "dup.keep_recommended_full": "Sailyta suositeltu & seuraava"
+  "dup.keep_recommended_full": "Sailyta suositeltu & seuraava",
+  "idx.scanning_anim": "Skannataan",
+  "idx.active": "Aktiivisia",
+  "idx.indexed_label": "Indeksoitu",
+  "idx.kept_label": "Sailytetty",
+  "idx.ai_desc": "AI-kuvaus",
+  "idx.missing_label": "puuttuu",
+  "idx.videos_label": "Videot",
+  "idx.pending_label": "odottaa",
+  "idx.file_types": "Tiedostotyypit",
+  "idx.imgs_per_s": "kuvaa/s",
+  "idx.ms_per_img": "ms/kuva",
+  "idx.s_per_img": "s/kuva"
 }

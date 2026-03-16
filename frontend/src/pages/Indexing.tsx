@@ -174,7 +174,7 @@ export default function Indexing() {
           {status.phase === 'scanning' ? (
             <div className="flex justify-between text-xs text-gray-400">
               <span>{status.processed} {t('stats.files')}...</span>
-              <span className="animate-pulse">Skannataan</span>
+              <span className="animate-pulse">{t('idx.scanning_anim')}</span>
             </div>
           ) : (
             <div className="flex justify-between text-xs text-gray-400">
@@ -216,14 +216,14 @@ export default function Indexing() {
         {status.running && (status.ai_total ?? 0) > 0 && (
           <div className="bg-gray-900/50 rounded p-3 space-y-1 border border-purple-900/30">
             <div className="flex justify-between text-xs text-gray-400">
-              <span>AI-analyysi: {status.ai_processed}/{status.ai_total}</span>
+              <span>{t('idx.phase.ai_analysis')}: {status.ai_processed}/{status.ai_total}</span>
               <span>{status.ai_total! > 0 ? Math.round((status.ai_processed ?? 0) / status.ai_total! * 100) : 0}%</span>
             </div>
             <ProgressBar value={status.ai_processed ?? 0} max={status.ai_total ?? 0} />
             <div className="flex items-center gap-3 text-xs text-gray-500">
               {(status.ai_speed ?? 0) > 0 && (
                 <>
-                  <span>{(1 / status.ai_speed!).toFixed(1)} s/kuva</span>
+                  <span>{(1 / status.ai_speed!).toFixed(1)} {t('idx.s_per_img')}</span>
                   <span className="text-gray-600">
                     ~{(() => {
                       const remaining = (status.ai_total ?? 0) - (status.ai_processed ?? 0)
@@ -253,21 +253,21 @@ export default function Indexing() {
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <div className="bg-gray-800 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-gray-100">{db.total}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Tiedostoja</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{t('stats.files')}</p>
                 </div>
                 <div className="bg-green-900/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-green-300">{photos}</p>
-                  <p className="text-xs text-green-400 mt-0.5">Kuvia</p>
-                  <p className="text-xs text-gray-600">Aktiivisia</p>
+                  <p className="text-xs text-green-400 mt-0.5">{t('idx.photos')}</p>
+                  <p className="text-xs text-gray-600">{t('idx.active')}</p>
                 </div>
                 <div className="bg-blue-900/30 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-blue-300">{db.videos}</p>
-                  <p className="text-xs text-blue-400 mt-0.5">Videoita</p>
+                  <p className="text-xs text-blue-400 mt-0.5">{t('idx.videos')}</p>
                 </div>
                 <div className="bg-yellow-900/20 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-yellow-300">{db.pending}</p>
-                  <p className="text-xs text-yellow-400 mt-0.5">Odottaa</p>
-                  <p className="text-xs text-gray-600">Käsittelemättä</p>
+                  <p className="text-xs text-yellow-400 mt-0.5">{t('idx.waiting')}</p>
+                  <p className="text-xs text-gray-600">{t('search.pending')}</p>
                 </div>
                 <div className="bg-red-900/20 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-red-300">{db.rejected}</p>
@@ -276,17 +276,16 @@ export default function Indexing() {
               </div>
               {/* Secondary stats */}
               <div className="flex flex-wrap gap-4 text-xs text-gray-500 px-1">
-                <span>Indeksoitu: <span className="text-gray-300">{db.indexed}</span></span>
-                <span>Säilytetty: <span className="text-blue-300">{db.kept}</span></span>
-                <span>AI-kuvaus: <span className="text-green-300">{db.ai_done}</span>{db.ai_missing > 0 && <span className="text-yellow-400"> / puuttuu {db.ai_missing}</span>}</span>
-                <span>Videot: <span className="text-blue-300">{db.videos_indexed}</span>{db.videos_pending > 0 && <span className="text-yellow-400"> / odottaa {db.videos_pending}</span>}</span>
-                <span>Puuttuvat: <span className="text-gray-400">{db.missing}</span></span>
-                <span>Virheet: <span className="text-red-400">{db.error}</span></span>
+                <span>{t('idx.indexed_label')}: <span className="text-gray-300">{db.indexed}</span></span>
+                <span>{t('idx.kept_label')}: <span className="text-blue-300">{db.kept}</span></span>
+                <span>{t('idx.ai_desc')}: <span className="text-green-300">{db.ai_done}</span>{db.ai_missing > 0 && <span className="text-yellow-400"> / {t('idx.missing_label')} {db.ai_missing}</span>}</span>
+                <span>{t('idx.videos_label')}: <span className="text-blue-300">{db.videos_indexed}</span>{db.videos_pending > 0 && <span className="text-yellow-400"> / {t('idx.pending_label')} {db.videos_pending}</span>}</span>
+                <span>{t('common.errors')}: <span className="text-red-400">{db.error}</span></span>
               </div>
               {/* Format breakdown */}
               {db.formats && Object.keys(db.formats).length > 0 && (
                 <div className="flex flex-wrap gap-2 text-xs text-gray-500 px-1">
-                  <span className="text-gray-600">Tiedostotyypit:</span>
+                  <span className="text-gray-600">{t('idx.file_types')}:</span>
                   {Object.entries(db.formats)
                     .sort(([,a], [,b]) => b - a)
                     .slice(0, 12)
@@ -307,10 +306,10 @@ export default function Indexing() {
             <span>{phaseLabel}: {status.processed}/{status.total}</span>
             <span>{t('common.errors')}: {status.errors}</span>
             {status.speed > 0 && status.phase === 'metadata' && (
-              <span>{status.speed.toFixed(1)} kuvaa/s ({(1000 / status.speed).toFixed(0)} ms/kuva)</span>
+              <span>{status.speed.toFixed(1)} {t('idx.imgs_per_s')} ({(1000 / status.speed).toFixed(0)} {t('idx.ms_per_img')})</span>
             )}
             {status.speed > 0 && status.phase === 'ai_analysis' && (
-              <span>{status.speed.toFixed(2)} kuvaa/s ({(1 / status.speed).toFixed(1)} s/kuva)</span>
+              <span>{status.speed.toFixed(2)} {t('idx.imgs_per_s')} ({(1 / status.speed).toFixed(1)} {t('idx.s_per_img')})</span>
             )}
             {status.speed > 0 && status.phase !== 'metadata' && status.phase !== 'ai_analysis' && (
               <span>{status.speed.toFixed(1)}/s</span>
@@ -357,7 +356,7 @@ export default function Indexing() {
         {/* Quick-add cloud folders */}
         {cloudFolders.length > 0 && (
           <div className="space-y-1">
-            <p className="text-xs text-gray-500">Pikalisäys:</p>
+            <p className="text-xs text-gray-500">{t('common.quick_add')}</p>
             <div className="flex flex-wrap gap-2">
               {cloudFolders
                 .filter(cf => !sourceDirs.includes(cf.path))
@@ -371,7 +370,7 @@ export default function Indexing() {
                   </button>
                 ))}
               {cloudFolders.every(cf => sourceDirs.includes(cf.path)) && (
-                <span className="text-xs text-gray-500">Kaikki pilviikansiot lisätty</span>
+                <span className="text-xs text-gray-500">{t('common.all_added')}</span>
               )}
             </div>
           </div>
