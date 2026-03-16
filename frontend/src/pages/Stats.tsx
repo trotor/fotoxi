@@ -71,77 +71,83 @@ export default function Stats() {
         </div>
       </div>
 
-      {/* Timeline - clickable, expandable to months */}
-      <div className="bg-gray-900 rounded-lg p-4">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">
-          Aikajana
-          {expandedYear && (
-            <button onClick={() => setExpandedYear(null)} className="ml-2 text-xs text-blue-400 hover:text-blue-300 font-normal">
-              [takaisin vuosiin]
-            </button>
-          )}
-        </h3>
+      {/* Timeline - years always visible, months expand below */}
+      <div className="bg-gray-900 rounded-lg p-4 space-y-3">
+        <h3 className="text-sm font-medium text-gray-300">Aikajana</h3>
 
-        {!expandedYear ? (
-          /* Year view */
-          <div className="flex items-end gap-1 h-32">
-            {stats.years.map(y => (
+        {/* Year bars - always visible */}
+        <div className="flex items-end gap-1 h-28">
+          {stats.years.map(y => {
+            const isSelected = expandedYear === y.year
+            return (
               <div key={y.year} className="flex-1 flex flex-col items-center justify-end h-full min-w-0 cursor-pointer group"
-                onClick={() => setExpandedYear(y.year)}
-                title={`${y.year}: ${y.count} kuvaa — klikkaa nahdaksesi kuukaudet`}>
+                title={`${y.year}: ${y.count} kuvaa`}>
                 <div
+                  onClick={() => goSearch({ date_from: `${y.year}-01-01`, date_to: `${y.year}-12-31` })}
                   className={`w-full rounded-t min-h-[2px] transition-colors ${
-                    expandedYear === y.year ? 'bg-blue-400' : 'bg-blue-600 group-hover:bg-blue-400'
+                    isSelected ? 'bg-blue-400' : 'bg-blue-600 group-hover:bg-blue-400'
                   }`}
                   style={{ height: `${(y.count / maxYear) * 100}%` }}
                 />
-                <span className="text-xs text-gray-600 group-hover:text-gray-300 mt-1 truncate w-full text-center transition-colors">
-                  {y.year?.slice(2)}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          /* Month view for selected year */
-          (() => {
-            const MONTH_NAMES = ['Tammi','Helmi','Maalis','Huhti','Touko','Kesa','Heina','Elo','Syys','Loka','Marras','Joulu']
-            const yearMonths = stats.months.filter(m => m.month.startsWith(expandedYear))
-            // Fill missing months
-            const monthData = Array.from({ length: 12 }, (_, i) => {
-              const key = `${expandedYear}-${String(i + 1).padStart(2, '0')}`
-              const found = yearMonths.find(m => m.month === key)
-              return { month: key, count: found?.count || 0, label: MONTH_NAMES[i] }
-            })
-            const maxMonth = Math.max(...monthData.map(m => m.count), 1)
-            const yearTotal = monthData.reduce((s, m) => s + m.count, 0)
-
-            return (
-              <div>
-                <p className="text-xs text-gray-400 mb-2">{expandedYear} — {yearTotal.toLocaleString()} kuvaa</p>
-                <div className="flex items-end gap-2 h-32">
-                  {monthData.map(m => (
-                    <div key={m.month} className="flex-1 flex flex-col items-center justify-end h-full min-w-0 cursor-pointer group"
-                      onClick={() => {
-                        const [y, mo] = m.month.split('-')
-                        const lastDay = new Date(Number(y), Number(mo), 0).getDate()
-                        goSearch({ date_from: `${m.month}-01`, date_to: `${m.month}-${lastDay}` })
-                      }}
-                      title={`${m.label} ${expandedYear}: ${m.count} kuvaa`}>
-                      <span className="text-xs text-gray-500 group-hover:text-gray-300 mb-1">{m.count || ''}</span>
-                      <div
-                        className="w-full bg-green-600 group-hover:bg-green-400 rounded-t min-h-[2px] transition-colors"
-                        style={{ height: `${(m.count / maxMonth) * 100}%` }}
-                      />
-                      <span className="text-xs text-gray-600 group-hover:text-gray-300 mt-1 truncate w-full text-center transition-colors">
-                        {m.label.slice(0, 3)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <button
+                  onClick={() => setExpandedYear(isSelected ? null : y.year)}
+                  className={`text-xs mt-1 truncate w-full text-center transition-colors ${
+                    isSelected ? 'text-blue-300 font-bold' : 'text-gray-600 group-hover:text-gray-300'
+                  }`}
+                >
+                  {y.year?.slice(2)}{isSelected ? ' v' : ''}
+                </button>
               </div>
             )
-          })()
-        )}
+          })}
+        </div>
+
+        {/* Month bars - expanded below selected year */}
+        {expandedYear && (() => {
+          const MONTH_NAMES = ['Tammi','Helmi','Maalis','Huhti','Touko','Kesa','Heina','Elo','Syys','Loka','Marras','Joulu']
+          const yearMonths = stats.months.filter(m => m.month.startsWith(expandedYear))
+          const monthData = Array.from({ length: 12 }, (_, i) => {
+            const key = `${expandedYear}-${String(i + 1).padStart(2, '0')}`
+            const found = yearMonths.find(m => m.month === key)
+            return { month: key, count: found?.count || 0, label: MONTH_NAMES[i] }
+          })
+          const maxMonth = Math.max(...monthData.map(m => m.count), 1)
+          const yearTotal = monthData.reduce((s, m) => s + m.count, 0)
+
+          return (
+            <div className="border-t border-gray-800 pt-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-gray-400">{expandedYear} — {yearTotal.toLocaleString()} kuvaa</p>
+                <button
+                  onClick={() => goSearch({ date_from: `${expandedYear}-01-01`, date_to: `${expandedYear}-12-31` })}
+                  className="text-xs text-blue-400 hover:text-blue-300"
+                >
+                  Nayta koko vuosi
+                </button>
+              </div>
+              <div className="flex items-end gap-2 h-24">
+                {monthData.map(m => (
+                  <div key={m.month} className="flex-1 flex flex-col items-center justify-end h-full min-w-0 cursor-pointer group"
+                    onClick={() => {
+                      const [y, mo] = m.month.split('-')
+                      const lastDay = new Date(Number(y), Number(mo), 0).getDate()
+                      goSearch({ date_from: `${m.month}-01`, date_to: `${m.month}-${lastDay}` })
+                    }}
+                    title={`${m.label} ${expandedYear}: ${m.count} kuvaa`}>
+                    {m.count > 0 && <span className="text-xs text-gray-500 group-hover:text-gray-300 mb-1">{m.count}</span>}
+                    <div
+                      className="w-full bg-green-600 group-hover:bg-green-400 rounded-t min-h-[2px] transition-colors"
+                      style={{ height: m.count > 0 ? `${(m.count / maxMonth) * 100}%` : '2px' }}
+                    />
+                    <span className="text-xs text-gray-600 group-hover:text-gray-300 mt-1 truncate w-full text-center transition-colors">
+                      {m.label.slice(0, 3)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Cameras - clickable */}
