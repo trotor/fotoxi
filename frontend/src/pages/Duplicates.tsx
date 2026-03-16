@@ -33,6 +33,31 @@ function shortFolder(path: string | null | undefined): string {
   return parts.slice(-2).join('/')
 }
 
+/** Score path quality - prefer cloud originals over downloads/temp */
+function pathScore(path: string | null): number {
+  if (!path) return 0
+  const p = path.toLowerCase()
+  if (p.includes('/originals/')) return 30
+  if (p.includes('onedrive') || p.includes('googledrive') || p.includes('icloud')) return 20
+  if (p.includes('/pictures/') || p.includes('/valokuvat/')) return 15
+  if (p.includes('/documents/')) return 10
+  if (p.includes('/downloads/')) return 5
+  return 10
+}
+
+/** Determine why this image is recommended */
+function bestReason(m: DuplicateMember, members: DuplicateMember[]): string {
+  const img = m.image
+  if (!img) return ''
+  const reasons: string[] = []
+  const maxSize = Math.max(...members.map(m2 => m2.image?.file_size ?? 0))
+  const maxPixels = Math.max(...members.map(m2 => (m2.image?.width ?? 0) * (m2.image?.height ?? 0)))
+  if (img.file_size === maxSize && members.length > 1) reasons.push('suurin')
+  if ((img.width ?? 0) * (img.height ?? 0) === maxPixels && maxPixels > 0) reasons.push('paras resoluutio')
+  if (pathScore(img.file_path) >= 20) reasons.push('alkuperainen sijainti')
+  return reasons.join(', ') || 'suositeltu'
+}
+
 function findBest(members: DuplicateMember[]): number {
   if (!members.length) return 0
   let bestId = members[0].image_id
@@ -42,7 +67,8 @@ function findBest(members: DuplicateMember[]): number {
     if (!img) continue
     const pixels = (img.width ?? 0) * (img.height ?? 0)
     const size = img.file_size ?? 0
-    const score = pixels * 1000 + size
+    // Weighted: resolution > size > path quality
+    const score = pixels * 1000 + size + pathScore(img.file_path) * 100000
     if (score > bestScore) {
       bestScore = score
       bestId = m.image_id
@@ -121,10 +147,7 @@ export default function Duplicates() {
             delete next[group.id]
             return next
           })
-          // Stay at same index - the resolved group will be filtered out
-          // on refetch, so the next group slides into this position
-          // Only decrement if we're at the end
-          setGroupIndex(i => Math.max(0, Math.min(i, groups.length - 2)))
+          queryClient.invalidateQueries({ queryKey: ['duplicates'] })
         },
       }
     )
@@ -310,7 +333,7 @@ export default function Duplicates() {
               )}
               {isSuggested && !isRejected && (
                 <div className="absolute top-1 right-1 bg-green-600 text-white text-xs px-1.5 py-0.5 rounded">
-                  Suositeltu (suurin)
+                  {bestReason(m, members)}
                 </div>
               )}
               {isDerivative && !isRejected && (
