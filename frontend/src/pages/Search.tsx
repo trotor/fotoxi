@@ -637,7 +637,19 @@ export default function Search() {
               </button>
             ))}
           </div>
-          <button onClick={() => setLocationNear(null)} className="text-xs text-gray-500 hover:text-gray-300 ml-auto">
+          <button
+            onClick={() => {
+              // Clear all other filters, keep only location
+              setDateFrom(''); setDateTo(''); setCamera(''); setSubmittedQuery(''); setQuery('')
+              setFolderFilter(''); setTimeNear(''); setMediaType('all')
+              setExcludeStatuses(new Set())
+              setActiveFilters({ dateFrom: '', dateTo: '', camera: '', minQuality: '', status: '', exclude: '', folder: '', media: 'all', timeNear: '' })
+            }}
+            className="text-xs text-green-400 hover:text-green-300"
+          >
+            📍 only
+          </button>
+          <button onClick={() => setLocationNear(null)} className="text-xs text-gray-500 hover:text-gray-300">
             {t('search.clear')}
           </button>
         </div>
