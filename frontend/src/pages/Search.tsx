@@ -219,40 +219,45 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
 export default function Search() {
   const [searchParams] = useSearchParams()
 
-  // Read initial filters from URL (from Stats page links)
-  const urlDateFrom = searchParams.get('date_from') || ''
-  const urlDateTo = searchParams.get('date_to') || ''
-  const urlCamera = searchParams.get('camera') || ''
-  const urlStatus = searchParams.get('status') || ''
-
   const [query, setQuery] = useState('')
   const [submittedQuery, setSubmittedQuery] = useState('')
-  const [dateFrom, setDateFrom] = useState(urlDateFrom)
-  const [dateTo, setDateTo] = useState(urlDateTo)
-  const [camera, setCamera] = useState(urlCamera)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [camera, setCamera] = useState('')
   const [minQuality, setMinQuality] = useState('')
   const [mediaType, setMediaType] = useState<'all' | 'photo' | 'video'>('all')
   const [sortBy, setSortBy] = useState('exif_date')
   const [sortOrder, setSortOrder] = useState('desc')
-  const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(() => {
-    if (urlStatus) return new Set<string>()  // Show specific status, no excludes
-    return new Set(['rejected', 'pending'])
-  })
+  const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(new Set(['rejected', 'pending']))
   const [folderFilter, setFolderFilter] = useState('')
   const [timeNear, setTimeNear] = useState('')
   const [showFolderPicker, setShowFolderPicker] = useState(false)
   const [activeFilters, setActiveFilters] = useState({
-    dateFrom: urlDateFrom,
-    dateTo: urlDateTo,
-    camera: urlCamera,
+    dateFrom: '',
+    dateTo: '',
+    camera: '',
     minQuality: '',
-    status: urlStatus,
-    exclude: urlStatus ? '' : 'rejected,pending',
+    status: '',
+    exclude: 'rejected,pending',
     folder: '',
     media: 'all',
     timeNear: '',
   })
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null)
+
+  // Sync URL params -> filters (when navigating from Stats etc.)
+  useEffect(() => {
+    const df = searchParams.get('date_from') || ''
+    const dt = searchParams.get('date_to') || ''
+    const cam = searchParams.get('camera') || ''
+    const st = searchParams.get('status') || ''
+    if (df || dt || cam || st) {
+      setDateFrom(df); setDateTo(dt); setCamera(cam)
+      const excl = st ? '' : 'rejected,pending'
+      setExcludeStatuses(st ? new Set() : new Set(['rejected', 'pending']))
+      setActiveFilters(prev => ({ ...prev, dateFrom: df, dateTo: dt, camera: cam, status: st, exclude: excl }))
+    }
+  }, [searchParams])
   const [showScrollTop, setShowScrollTop] = useState(false)
   const loadMoreRef = useRef<HTMLDivElement>(null)
 
