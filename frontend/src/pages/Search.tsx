@@ -312,7 +312,8 @@ export default function Search() {
   const [timeNear, setTimeNear] = useState('')
   const [timeRange, setTimeRange] = useState(300)
   const [locationNear, setLocationNear] = useState<{ lat: number; lon: number } | null>(null)
-  const [locationRadius, setLocationRadius] = useState(1) // km
+  const [locationRadius, setLocationRadius] = useState(1)
+  const [hasAiFilter, setHasAiFilter] = useState(false)
   const [showFolderPicker, setShowFolderPicker] = useState(false)
   const [activeFilters, setActiveFilters] = useState({
     dateFrom: '',
@@ -351,7 +352,7 @@ export default function Search() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['search', submittedQuery, activeFilters, sortBy, sortOrder, timeRange, locationNear, locationRadius],
+    queryKey: ['search', submittedQuery, activeFilters, sortBy, sortOrder, timeRange, locationNear, locationRadius, hasAiFilter],
     queryFn: ({ pageParam = 1 }) =>
       searchImages({
         q: submittedQuery || undefined,
@@ -365,6 +366,7 @@ export default function Search() {
         media: activeFilters.media !== 'all' ? activeFilters.media : undefined,
         time_near: activeFilters.timeNear || undefined,
         time_range: activeFilters.timeNear ? timeRange : undefined,
+        has_ai: hasAiFilter || undefined,
         lat: locationNear?.lat,
         lon: locationNear?.lon,
         radius: locationNear ? locationRadius : undefined,
@@ -522,6 +524,14 @@ export default function Search() {
             {m.label}
           </button>
         ))}
+        <button
+          onClick={() => setHasAiFilter(!hasAiFilter)}
+          className={`text-xs px-2 py-1 rounded transition-colors ${
+            hasAiFilter ? 'bg-purple-700 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+          }`}
+        >
+          🤖 AI
+        </button>
         <span className="text-gray-700 mx-1">|</span>
         <span className="text-xs text-gray-500">{t('search.sort')}</span>
         {[

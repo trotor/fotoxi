@@ -455,13 +455,19 @@ class IndexerOrchestrator:
                         if ai_result is not None:
                             import datetime
 
-                            img.ai_description = ai_result.get("description")
-                            tags = ai_result.get("tags")
-                            img.ai_tags = json.dumps(tags) if tags is not None else None
+                            desc = ai_result.get("description", "")
+                            tags = ai_result.get("tags", [])
+                            img.ai_description = desc
+                            img.ai_tags = json.dumps(tags) if tags else None
                             img.ai_quality_score = ai_result.get("quality_score")
                             img.ai_model = self.config.ollama_model
                             img.status = "indexed"
                             img.indexed_at = datetime.datetime.utcnow()
+                            # Log AI result
+                            tag_str = ", ".join(tags[:5]) if tags else ""
+                            self.state.log(f"🤖 {image.file_name}: {desc[:60]}{'...' if len(desc)>60 else ''}")
+                            if tag_str:
+                                self.state.log(f"   🏷 {tag_str}")
                         else:
                             img.status = "error"
                             img.error_message = "AI analysis returned no result"

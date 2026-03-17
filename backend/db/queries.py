@@ -23,6 +23,7 @@ async def search_images(
     media: Optional[str] = None,
     time_near: Optional[str] = None,
     time_range: int = 120,
+    has_ai: Optional[bool] = None,
     lat: Optional[float] = None,
     lon: Optional[float] = None,
     radius: Optional[float] = None,
@@ -80,6 +81,10 @@ async def search_images(
         center = datetime.datetime.fromisoformat(time_near)
         delta = timedelta(seconds=time_range)
         stmt = stmt.where(Image.exif_date >= center - delta, Image.exif_date <= center + delta)
+
+    # AI description filter
+    if has_ai:
+        stmt = stmt.where(Image.ai_description.is_not(None))
 
     # GPS proximity filter (bounding box approximation)
     if lat is not None and lon is not None and radius is not None:
