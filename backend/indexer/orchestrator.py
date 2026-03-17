@@ -440,6 +440,7 @@ class IndexerOrchestrator:
                             model=self.config.ollama_model,
                             language=self.config.ai_language,
                             quality_enabled=self.config.ai_quality_enabled,
+                            thumb_path=Path(self.config.thumbs_dir) / f"{image_id}.jpg",
                         ),
                     )
 

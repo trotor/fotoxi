@@ -366,6 +366,106 @@ async def cmd_rebuild_thumbs(args: argparse.Namespace) -> None:
     await engine.dispose()
 
 
+async def cmd_ai(args: argparse.Namespace) -> None:
+    from sqlalchemy import select, func, update
+    from backend.db.models import Image
+    from backend.indexer.analyzer import analyze_image
+    import time as _time
+
+    engine, session_factory, config = await _get_session_and_config()
+
+    # If --reset, clear all AI descriptions
+    if getattr(args, 'reset', False):
+        async with session_factory() as session:
+            await session.execute(
+                update(Image).where(Image.ai_description.is_not(None)).values(
+                    ai_description=None, ai_tags=None, ai_quality_score=None, ai_model=None
+                )
+            )
+            await session.commit()
+        print("Cleared all AI descriptions. Run again without --reset to regenerate.")
+        await engine.dispose()
+        return
+
+    # Find images needing AI (have thumbnail, no description, not video)
+    from backend.indexer.scanner import VIDEO_EXTENSIONS
+    video_exts = [ext.upper().lstrip(".") for ext in VIDEO_EXTENSIONS]
+
+    async with session_factory() as session:
+        result = await session.execute(
+            select(Image).where(
+                Image.ai_description.is_(None),
+                Image.phash.is_not(None),
+                Image.status.in_(["indexed", "kept"]),
+                Image.format.notin_(video_exts),
+            ).order_by(Image.file_size)
+        )
+        images = result.scalars().all()
+
+    total = len(images)
+    if total == 0:
+        print("All images already have AI descriptions.")
+        await engine.dispose()
+        return
+
+    print(f"AI analysis: {total} images, model={config.ollama_model}")
+    print(f"Using thumbnails (300px) for speed. Ctrl+C to stop (progress saved).")
+
+    done = 0
+    errors = 0
+    t0 = _time.time()
+    thumbs_dir = Path(config.thumbs_dir)
+
+    for img in images:
+        thumb = thumbs_dir / f"{img.id}.jpg"
+        if not thumb.exists():
+            errors += 1
+            continue
+
+        try:
+            result = analyze_image(
+                path=Path(img.file_path),
+                ollama_url=config.ollama_url,
+                model=config.ollama_model,
+                language=config.ai_language,
+                quality_enabled=config.ai_quality_enabled,
+                thumb_path=thumb,
+                retries=1,
+                retry_delay=2.0,
+            )
+
+            if result:
+                import json as _json
+                import datetime as _dt
+                async with session_factory() as session:
+                    db_img = (await session.execute(select(Image).where(Image.id == img.id))).scalar_one_or_none()
+                    if db_img:
+                        db_img.ai_description = result["description"]
+                        db_img.ai_tags = _json.dumps(result["tags"])
+                        db_img.ai_quality_score = result.get("quality_score")
+                        db_img.ai_model = config.ollama_model
+                        db_img.indexed_at = _dt.datetime.now(_dt.timezone.utc)
+                        await session.commit()
+                done += 1
+            else:
+                errors += 1
+
+        except KeyboardInterrupt:
+            print(f"\nStopped. {done}/{total} done, {errors} errors.")
+            break
+        except Exception as e:
+            errors += 1
+
+        elapsed = _time.time() - t0
+        speed = done / elapsed if elapsed > 0 else 0
+        eta = (total - done - errors) / speed if speed > 0 else 0
+        eta_str = f"{eta/60:.0f}min" if eta < 3600 else f"{eta/3600:.1f}h"
+        print(f"\r  {done+errors}/{total} ({done} ok, {errors} err) {speed:.2f}/s ~{eta_str}  {img.file_name[:40]}", end="", flush=True)
+
+    print(f"\nDone! {done} AI descriptions created, {errors} errors.")
+    await engine.dispose()
+
+
 def cmd_backup(args: argparse.Namespace) -> None:
     import shutil
     from datetime import datetime
@@ -437,6 +537,10 @@ def main():
     # rebuild-thumbs
     subparsers.add_parser("rebuild-thumbs", help="Rebuild all thumbnails (fixes orientation)")
 
+    # ai
+    ai_p = subparsers.add_parser("ai", help="Run AI descriptions (uses thumbnails, skips videos)")
+    ai_p.add_argument("--reset", action="store_true", help="Clear all AI descriptions first")
+
     args = parser.parse_args()
 
     if args.command is None:
@@ -465,6 +569,8 @@ def main():
         cmd_migrate(args)
     elif args.command == "rebuild-thumbs":
         asyncio.run(cmd_rebuild_thumbs(args))
+    elif args.command == "ai":
+        asyncio.run(cmd_ai(args))
     else:
         parser.print_help()
 

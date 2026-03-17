@@ -63,16 +63,19 @@ def analyze_image(
     timeout: float = 120.0,
     retries: int = 3,
     retry_delay: float = 30.0,
+    thumb_path: str | Path | None = None,
 ) -> Optional[dict]:
     """Analyze an image using an Ollama vision model.
 
-    Base64-encodes the image and sends it to the Ollama /api/chat endpoint.
-    Returns a dict with 'description', 'tags', and 'quality_score' (None when
-    quality_enabled is False), or None if all retries are exhausted.
+    Uses thumbnail if available (much faster, no cloud download needed).
+    Skips videos without thumbnails.
+    Returns a dict with 'description', 'tags', and 'quality_score'.
     """
     path = Path(path)
+    # Prefer thumbnail for AI analysis (300px is enough for description)
+    source = Path(thumb_path) if thumb_path and Path(thumb_path).exists() else path
     try:
-        image_data = base64.b64encode(path.read_bytes()).decode("utf-8")
+        image_data = base64.b64encode(source.read_bytes()).decode("utf-8")
     except OSError as exc:
         logger.error("Cannot read image file %s: %s", path, exc)
         return None
