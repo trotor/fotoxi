@@ -379,22 +379,35 @@ async def cmd_ai(args: argparse.Namespace) -> None:
         async with session_factory() as session:
             await session.execute(
                 update(Image).where(Image.ai_description.is_not(None)).values(
-                    ai_description=None, ai_tags=None, ai_quality_score=None, ai_model=None
+                    ai_description=None, ai_tags=None,
+                    ai_description_en=None, ai_tags_en=None,
+                    ai_description_fi=None, ai_tags_fi=None,
+                    ai_quality_score=None, ai_model=None,
                 )
             )
             await session.commit()
-        print("Cleared all AI descriptions. Run again without --reset to regenerate.")
+        print("Cleared all AI descriptions (all languages). Run again without --reset to regenerate.")
         await engine.dispose()
         return
 
-    # Find images needing AI (have thumbnail, no description, not video)
+    # Override lang/model from args
+    lang = getattr(args, 'lang', None) or config.ai_language
+    model = getattr(args, 'model', None) or config.ollama_model
+    # Normalize language
+    if lang in ("en", "english"): lang = "english"
+    elif lang in ("fi", "finnish"): lang = "finnish"
+
+    # Find images needing AI for this language
     from backend.indexer.scanner import VIDEO_EXTENSIONS
     video_exts = [ext.upper().lstrip(".") for ext in VIDEO_EXTENSIONS]
+
+    # Pick the right column to check
+    lang_col = Image.ai_description_en if lang == "english" else Image.ai_description_fi if lang == "finnish" else Image.ai_description
 
     async with session_factory() as session:
         result = await session.execute(
             select(Image).where(
-                Image.ai_description.is_(None),
+                lang_col.is_(None),
                 Image.phash.is_not(None),
                 Image.status.in_(["indexed", "kept"]),
                 Image.format.notin_(video_exts),
@@ -404,11 +417,11 @@ async def cmd_ai(args: argparse.Namespace) -> None:
 
     total = len(images)
     if total == 0:
-        print("All images already have AI descriptions.")
+        print(f"All images already have AI descriptions ({lang}).")
         await engine.dispose()
         return
 
-    print(f"AI analysis: {total} images, model={config.ollama_model}")
+    print(f"AI analysis: {total} images, model={model}, lang={lang}")
     print(f"Using thumbnails (300px) for speed. Ctrl+C to stop (progress saved).")
 
     done = 0
@@ -426,8 +439,8 @@ async def cmd_ai(args: argparse.Namespace) -> None:
             result = analyze_image(
                 path=Path(img.file_path),
                 ollama_url=config.ollama_url,
-                model=config.ollama_model,
-                language=config.ai_language,
+                model=model,
+                language=lang,
                 quality_enabled=config.ai_quality_enabled,
                 thumb_path=thumb,
                 retries=1,
@@ -440,10 +453,18 @@ async def cmd_ai(args: argparse.Namespace) -> None:
                 async with session_factory() as session:
                     db_img = (await session.execute(select(Image).where(Image.id == img.id))).scalar_one_or_none()
                     if db_img:
-                        db_img.ai_description = result["description"]
-                        db_img.ai_tags = _json.dumps(result["tags"])
+                        desc = result["description"]
+                        tags_json = _json.dumps(result["tags"])
+                        db_img.ai_description = desc
+                        db_img.ai_tags = tags_json
+                        if lang == "english":
+                            db_img.ai_description_en = desc
+                            db_img.ai_tags_en = tags_json
+                        elif lang == "finnish":
+                            db_img.ai_description_fi = desc
+                            db_img.ai_tags_fi = tags_json
                         db_img.ai_quality_score = result.get("quality_score")
-                        db_img.ai_model = config.ollama_model
+                        db_img.ai_model = model
                         db_img.indexed_at = _dt.datetime.now(_dt.timezone.utc)
                         await session.commit()
                 done += 1
@@ -540,6 +561,8 @@ def main():
     # ai
     ai_p = subparsers.add_parser("ai", help="Run AI descriptions (uses thumbnails, skips videos)")
     ai_p.add_argument("--reset", action="store_true", help="Clear all AI descriptions first")
+    ai_p.add_argument("--lang", choices=["en", "fi"], help="Override language (default: from settings)")
+    ai_p.add_argument("--model", help="Override Ollama model (default: from settings)")
 
     args = parser.parse_args()
 

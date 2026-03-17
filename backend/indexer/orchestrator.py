@@ -457,8 +457,17 @@ class IndexerOrchestrator:
 
                             desc = ai_result.get("description", "")
                             tags = ai_result.get("tags", [])
+                            tags_json = json.dumps(tags) if tags else None
+                            lang = self.config.ai_language
+                            # Store in generic + language-specific fields
                             img.ai_description = desc
-                            img.ai_tags = json.dumps(tags) if tags else None
+                            img.ai_tags = tags_json
+                            if lang == "english" or lang == "en":
+                                img.ai_description_en = desc
+                                img.ai_tags_en = tags_json
+                            elif lang == "finnish" or lang == "fi":
+                                img.ai_description_fi = desc
+                                img.ai_tags_fi = tags_json
                             img.ai_quality_score = ai_result.get("quality_score")
                             img.ai_model = self.config.ollama_model
                             img.status = "indexed"

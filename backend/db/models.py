@@ -53,6 +53,10 @@ class Image(Base):
     # AI fields
     ai_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ai_tags: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string
+    ai_description_en: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_tags_en: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_description_fi: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_tags_fi: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ai_quality_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     ai_model: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
