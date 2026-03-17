@@ -428,23 +428,10 @@ async def cmd_ai(args: argparse.Namespace) -> None:
     done = 0
     errors = 0
     t0 = _time.time()
-    ai_thumbs_dir = Path(config.ai_thumbs_dir)
-    ai_thumb_size = config.ai_thumb_size
     thumbs_dir = Path(config.thumbs_dir)
 
     for img in images:
-        # Generate AI thumbnail if missing
-        ai_thumb = ai_thumbs_dir / f"{img.id}.jpg"
-        if not ai_thumb.exists():
-            src = Path(img.file_path)
-            fallback = thumbs_dir / f"{img.id}.jpg"
-            if src.exists():
-                generate_ai_thumb(src, ai_thumbs_dir, img.id, size=ai_thumb_size)
-            elif fallback.exists():
-                # Use display thumb as fallback
-                ai_thumb = fallback
-
-        thumb = ai_thumb if ai_thumb.exists() else (thumbs_dir / f"{img.id}.jpg")
+        thumb = thumbs_dir / f"{img.id}.jpg"
         if not thumb.exists():
             errors += 1
             continue
