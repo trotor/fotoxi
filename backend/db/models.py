@@ -57,6 +57,8 @@ class Image(Base):
     ai_tags_en: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ai_description_fi: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ai_tags_fi: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_colors: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON
+    ai_scene_type: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ai_quality_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     ai_model: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 

@@ -28,8 +28,14 @@ class Config:
     ui_language: str = "fi"
     server_host: str = "127.0.0.1"
     server_port: int = 8000
+    ai_thumb_size: int = 512
     auto_process_on_start: bool = False
+
+    @property
+    def ai_thumbs_dir(self) -> str:
+        return str(Path(self.thumbs_dir).parent / "ai_thumbs")
 
     def ensure_dirs(self) -> None:
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         Path(self.thumbs_dir).mkdir(parents=True, exist_ok=True)
+        Path(self.ai_thumbs_dir).mkdir(parents=True, exist_ok=True)

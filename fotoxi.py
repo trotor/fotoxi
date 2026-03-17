@@ -370,6 +370,7 @@ async def cmd_ai(args: argparse.Namespace) -> None:
     from sqlalchemy import select, func, update
     from backend.db.models import Image
     from backend.indexer.analyzer import analyze_image
+    from backend.indexer.ai_thumbs import generate_ai_thumb
     import time as _time
 
     engine, session_factory, config = await _get_session_and_config()
@@ -427,10 +428,23 @@ async def cmd_ai(args: argparse.Namespace) -> None:
     done = 0
     errors = 0
     t0 = _time.time()
+    ai_thumbs_dir = Path(config.ai_thumbs_dir)
+    ai_thumb_size = config.ai_thumb_size
     thumbs_dir = Path(config.thumbs_dir)
 
     for img in images:
-        thumb = thumbs_dir / f"{img.id}.jpg"
+        # Generate AI thumbnail if missing
+        ai_thumb = ai_thumbs_dir / f"{img.id}.jpg"
+        if not ai_thumb.exists():
+            src = Path(img.file_path)
+            fallback = thumbs_dir / f"{img.id}.jpg"
+            if src.exists():
+                generate_ai_thumb(src, ai_thumbs_dir, img.id, size=ai_thumb_size)
+            elif fallback.exists():
+                # Use display thumb as fallback
+                ai_thumb = fallback
+
+        thumb = ai_thumb if ai_thumb.exists() else (thumbs_dir / f"{img.id}.jpg")
         if not thumb.exists():
             errors += 1
             continue
@@ -463,9 +477,19 @@ async def cmd_ai(args: argparse.Namespace) -> None:
                         elif lang == "finnish":
                             db_img.ai_description_fi = desc
                             db_img.ai_tags_fi = tags_json
+                        colors = result.get("colors", [])
+                        db_img.ai_colors = _json.dumps(colors) if colors else None
+                        db_img.ai_scene_type = result.get("scene_type")
                         db_img.ai_quality_score = result.get("quality_score")
                         db_img.ai_model = model
                         db_img.indexed_at = _dt.datetime.now(_dt.timezone.utc)
+                        await session.commit()
+                        # Update FTS index
+                        from sqlalchemy import text
+                        await session.execute(text(
+                            "INSERT OR REPLACE INTO images_fts(rowid, ai_description, ai_tags, file_name) "
+                            "VALUES (:id, :desc, :tags, :name)"
+                        ), {"id": img.id, "desc": desc, "tags": tags_json, "name": img.file_name})
                         await session.commit()
                 done += 1
             else:

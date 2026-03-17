@@ -47,9 +47,13 @@ def _parse_response(content: str, quality_enabled: bool) -> Optional[dict]:
             except (TypeError, ValueError):
                 quality_score = None
 
+    colors = data.get("colors", [])
+    scene_type = data.get("scene_type", "other")
     return {
         "description": description,
-        "tags": tags,
+        "tags": [str(t) for t in tags],
+        "colors": [str(c) for c in colors] if isinstance(colors, list) else [],
+        "scene_type": str(scene_type) if isinstance(scene_type, str) else "other",
         "quality_score": quality_score,
     }
 
@@ -81,18 +85,23 @@ def analyze_image(
         return None
 
     quality_instruction = (
-        '\n- "quality_score": a float between 0.0 and 1.0 rating the overall '
-        "photographic quality of the image (sharpness, exposure, composition)"
+        '\n- "quality_score": a float between 0.0 and 1.0 rating photographic quality (sharpness, exposure, composition)'
         if quality_enabled
         else ""
     )
     prompt = (
-        f"Analyze this image and respond with ONLY a JSON object (no other text) "
-        f"containing exactly these fields:\n"
-        f'- "description": a 2-3 sentence description of the image in {language}\n'
-        f'- "tags": an array of 5 to 10 relevant keyword tags (strings) in {language}'
+        f"Analyze this image carefully and respond with ONLY a JSON object (no other text).\n"
+        f"Fields:\n"
+        f'- "description": 2-3 sentence description in {language}. Include what is shown, '
+        f"the setting/environment, mood, and any notable details.\n"
+        f'- "tags": array of 8-15 keyword tags in {language}. Include: subject, action, '
+        f"setting, objects, colors, mood, style (e.g. portrait, landscape, macro), "
+        f"time of day if visible, season if apparent.\n"
+        f'- "colors": array of 2-4 dominant color names in english (e.g. "blue", "warm orange")\n'
+        f'- "scene_type": one of: "portrait", "group", "landscape", "cityscape", "indoor", '
+        f'"food", "animal", "document", "screenshot", "art", "macro", "other"'
         f"{quality_instruction}\n\n"
-        f"Respond with only the JSON object, no markdown, no explanation."
+        f"Respond with ONLY the JSON object."
     )
 
     payload = {
