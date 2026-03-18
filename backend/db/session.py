@@ -17,7 +17,7 @@ from backend.db.models import Base
 def init_db(conn: AsyncConnection) -> None:
     """
     Synchronous-style helper (called via run_sync) that creates the FTS5
-    virtual table for full-text search over the images table.
+    virtual table and triggers for automatic sync.
     """
     conn.exec_driver_sql(
         """
@@ -31,6 +31,37 @@ def init_db(conn: AsyncConnection) -> None:
         )
         """
     )
+
+    # Create triggers to keep FTS5 in sync with images table
+    conn.exec_driver_sql(
+        """
+        CREATE TRIGGER IF NOT EXISTS images_ai_insert AFTER INSERT ON images BEGIN
+            INSERT INTO images_fts(rowid, ai_description, ai_tags, file_name)
+            VALUES (new.id, new.ai_description, new.ai_tags, new.file_name);
+        END
+        """
+    )
+    conn.exec_driver_sql(
+        """
+        CREATE TRIGGER IF NOT EXISTS images_ai_delete BEFORE DELETE ON images BEGIN
+            INSERT INTO images_fts(images_fts, rowid, ai_description, ai_tags, file_name)
+            VALUES ('delete', old.id, old.ai_description, old.ai_tags, old.file_name);
+        END
+        """
+    )
+    conn.exec_driver_sql(
+        """
+        CREATE TRIGGER IF NOT EXISTS images_ai_update AFTER UPDATE OF ai_description, ai_tags, file_name ON images BEGIN
+            INSERT INTO images_fts(images_fts, rowid, ai_description, ai_tags, file_name)
+            VALUES ('delete', old.id, old.ai_description, old.ai_tags, old.file_name);
+            INSERT INTO images_fts(rowid, ai_description, ai_tags, file_name)
+            VALUES (new.id, new.ai_description, new.ai_tags, new.file_name);
+        END
+        """
+    )
+
+    # Rebuild FTS index from current data
+    conn.exec_driver_sql("INSERT INTO images_fts(images_fts) VALUES('rebuild')")
 
 
 async def create_engine_and_init(
