@@ -127,5 +127,6 @@
   "help.shortcut_reject": "Hylkää kuva & seuraava",
   "help.shortcut_nav": "Edellinen / seuraava kuva",
   "help.shortcut_close": "Sulje kuvanäkymä",
-  "help.version": "Versio"
+  "help.version": "Versio",
+  "help.update_available": "Uusi versio saatavilla:"
 }

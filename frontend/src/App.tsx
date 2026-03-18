@@ -8,6 +8,20 @@ import Indexing from './pages/Indexing'
 import Settings from './pages/Settings'
 import Stats from './pages/Stats'
 
+const CURRENT_VERSION = '0.2.0'
+const VERSION_CHECK_URL = 'https://raw.githubusercontent.com/trotor/fotoxi/main/version.json'
+
+function useLatestVersion() {
+  const [latest, setLatest] = useState<string | null>(null)
+  useEffect(() => {
+    fetch(VERSION_CHECK_URL)
+      .then(r => r.json())
+      .then(d => { if (d.version && d.version !== CURRENT_VERSION) setLatest(d.version) })
+      .catch(() => {})
+  }, [])
+  return latest
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 30_000, retry: 1 },
@@ -38,6 +52,7 @@ function HelpButton() {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const latestVersion = useLatestVersion()
 
   useEffect(() => {
     if (!open) return
@@ -81,7 +96,13 @@ function HelpButton() {
           </div>
 
           <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500">
-            {t('help.version')} 0.2.0
+            {t('help.version')} {CURRENT_VERSION}
+            {latestVersion && (
+              <a href="https://github.com/trotor/fotoxi" target="_blank" rel="noopener noreferrer"
+                className="block mt-1.5 text-green-400 hover:text-green-300 font-medium">
+                {t('help.update_available')} {latestVersion}
+              </a>
+            )}
           </div>
         </div>
       )}
@@ -100,7 +121,7 @@ export default function App() {
               <img src="/favicon.svg" alt="Fotoxi" className="w-7 h-7" />
               <div className="mr-4">
                 <span className="text-white font-bold text-lg">Fotoxi</span>
-                <span className="text-gray-600 text-xs ml-1">v0.2.0</span>
+                <span className="text-gray-600 text-xs ml-1">v{CURRENT_VERSION}</span>
               </div>
               <NavLink to="/search" className={navLinkClass}>{t('nav.search')}</NavLink>
               <NavLink to="/duplicates" className={navLinkClass}>{t('nav.duplicates')}</NavLink>

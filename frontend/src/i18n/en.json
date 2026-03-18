@@ -127,5 +127,6 @@
   "help.shortcut_reject": "Reject photo & next",
   "help.shortcut_nav": "Previous / next photo",
   "help.shortcut_close": "Close viewer",
-  "help.version": "Version"
+  "help.version": "Version",
+  "help.update_available": "New version available:"
 }
