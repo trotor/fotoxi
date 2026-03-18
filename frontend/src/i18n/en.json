@@ -128,5 +128,6 @@
   "help.shortcut_nav": "Previous / next photo",
   "help.shortcut_close": "Close viewer",
   "help.version": "Version",
-  "help.update_available": "New version available:"
+  "help.update_available": "New version available:",
+  "help.refresh_metadata": "Refresh metadata from file"
 }

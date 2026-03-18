@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImageData } from '../api'
-import { searchImages, thumbUrl, fullUrl, updateImageStatus, getImageFolders, excludeFolder } from '../api'
+import { searchImages, thumbUrl, fullUrl, updateImageStatus, refreshImageMetadata, getImageFolders, excludeFolder } from '../api'
 import FilterBar from '../components/FilterBar'
 import { useI18n } from '../i18n/useTranslation'
 
@@ -15,8 +15,9 @@ function formatBytes(b: number | null | undefined): string {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNear, onLocationNear, onPrev, onNext }: {
+function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onFolderSelect, onTimeNear, onLocationNear, onPrev, onNext }: {
   image: ImageData; onClose: () => void; onStatusChange: (id: number, status: string) => void;
+  onRefreshMetadata: (id: number) => void;
   onFolderSelect: (folder: string) => void; onTimeNear?: (date: string) => void;
   onLocationNear?: (lat: number, lon: number) => void;
   onPrev?: () => void; onNext?: () => void;
@@ -134,6 +135,13 @@ function DetailModal({ image, onClose, onStatusChange, onFolderSelect, onTimeNea
                   [📍 nearby]
                 </button>
               )}
+              <button
+                onClick={() => onRefreshMetadata(image.id)}
+                className="text-xs text-gray-500 hover:text-gray-300 flex-shrink-0 ml-auto"
+                title={t('help.refresh_metadata')}
+              >
+                ↻
+              </button>
             </div>
           )}
 
@@ -393,7 +401,7 @@ export default function Search() {
           fetchNextPage()
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1, rootMargin: '0px 0px 800px 0px' }
     )
     observer.observe(el)
     return () => observer.disconnect()
@@ -821,6 +829,10 @@ export default function Search() {
           image={selectedImage}
           onClose={() => setSelectedImage(null)}
           onStatusChange={handleStatusChange}
+          onRefreshMetadata={async (id) => {
+            await refreshImageMetadata(id)
+            queryClient.invalidateQueries({ queryKey: ['search'] })
+          }}
           onFolderSelect={handleFolderSelect}
           onTimeNear={handleTimeNear}
           onLocationNear={handleLocationNear}

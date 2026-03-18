@@ -1,5 +1,7 @@
 import logging
-from datetime import datetime
+import re
+import struct
+from datetime import datetime, timedelta
 from fractions import Fraction
 from pathlib import Path
 from typing import Optional
@@ -152,8 +154,48 @@ def extract_exif(path: Path) -> Optional[dict]:
     }
 
 
+def _read_mp4_creation_time(path: Path) -> Optional[datetime]:
+    """Read creation_time from MP4/MOV mvhd atom (container metadata)."""
+    try:
+        with open(path, "rb") as f:
+            while True:
+                header = f.read(8)
+                if len(header) < 8:
+                    return None
+                size, box_type = struct.unpack(">I4s", header)
+                box_type = box_type.decode("ascii", errors="ignore")
+                if size == 0:
+                    return None
+                if size == 1:  # 64-bit extended size
+                    size = struct.unpack(">Q", f.read(8))[0]
+                if box_type in ("moov", "trak", "mdia"):
+                    continue  # descend into container atoms
+                elif box_type == "mvhd":
+                    version = struct.unpack(">B", f.read(1))[0]
+                    f.read(3)  # flags
+                    if version == 0:
+                        ct = struct.unpack(">I", f.read(4))[0]
+                    else:
+                        ct = struct.unpack(">Q", f.read(8))[0]
+                    if ct == 0:
+                        return None
+                    # MP4 epoch is 1904-01-01
+                    dt = datetime(1904, 1, 1) + timedelta(seconds=ct)
+                    # Sanity check: must be after 2000 and not in the future
+                    if dt.year < 2000 or dt > datetime.now() + timedelta(days=1):
+                        return None
+                    return dt
+                else:
+                    remaining = size - 8
+                    if remaining > 0:
+                        f.seek(remaining, 1)
+    except Exception as exc:
+        logger.debug("_read_mp4_creation_time failed for %s: %s", path, exc)
+    return None
+
+
 def _extract_video_metadata(path: Path) -> Optional[dict]:
-    """Extract basic metadata from a video file using OpenCV."""
+    """Extract basic metadata from a video file using OpenCV + MP4 atoms."""
     result = {
         "width": None, "height": None, "format": path.suffix.upper().lstrip("."),
         "exif_date": None, "exif_camera_make": None, "exif_camera_model": None,
@@ -173,11 +215,44 @@ def _extract_video_metadata(path: Path) -> Optional[dict]:
     except Exception as exc:
         logger.warning("Video metadata extraction failed for %s: %s", path, exc)
 
-    # Try to get date from file modification time
+    # Try MP4/MOV container creation_time first (most reliable)
+    creation_time = _read_mp4_creation_time(path)
+    if creation_time:
+        result["exif_date"] = creation_time
+        return result
+
+    # Try parsing date from filename (e.g. 20260112_190536000_iOS.MP4, VID_20210501_123456.mp4)
+    fname_date = _parse_date_from_filename(path.stem)
+    if fname_date:
+        result["exif_date"] = fname_date
+        return result
+
+    # Fallback: earliest of mtime and birthtime
     try:
-        mtime = path.stat().st_mtime
-        result["exif_date"] = datetime.fromtimestamp(mtime)
+        stat = path.stat()
+        candidates = [stat.st_mtime]
+        btime = getattr(stat, "st_birthtime", None)
+        if btime:
+            candidates.append(btime)
+        result["exif_date"] = datetime.fromtimestamp(min(candidates))
     except Exception:
         pass
 
     return result
+
+
+def _parse_date_from_filename(stem: str) -> Optional[datetime]:
+    """Try to extract a date/time from common filename patterns."""
+    # Pattern: 20260112_190536 (with optional milliseconds and suffix)
+    m = re.match(r"(\d{4})(\d{2})(\d{2})[_\-](\d{2})(\d{2})(\d{2})", stem)
+    if not m:
+        # Pattern: VID_20260112_190536 or IMG_20260112_190536
+        m = re.match(r"(?:VID|IMG|MOV)[_\-](\d{4})(\d{2})(\d{2})[_\-](\d{2})(\d{2})(\d{2})", stem)
+    if m:
+        try:
+            dt = datetime(int(m[1]), int(m[2]), int(m[3]), int(m[4]), int(m[5]), int(m[6]))
+            if 2000 <= dt.year <= datetime.now().year + 1:
+                return dt
+        except ValueError:
+            pass
+    return None

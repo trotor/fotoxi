@@ -68,6 +68,44 @@ def _image_to_dict(img: Image) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+@router.post("/images/refresh-videos")
+async def refresh_video_metadata(request: Request) -> Dict[str, Any]:
+    """Re-extract metadata for all video files (fixes incorrect dates)."""
+    from sqlalchemy import select as sa_select
+    from backend.indexer.exif import extract_exif
+    from backend.indexer.scanner import VIDEO_EXTENSIONS
+
+    video_exts_upper = [ext.upper().lstrip(".") for ext in VIDEO_EXTENSIONS]
+    session_factory = request.app.state.session_factory
+
+    updated = 0
+    errors = 0
+    loop = asyncio.get_event_loop()
+
+    async with session_factory() as session:
+        result = await session.execute(
+            sa_select(Image).where(Image.format.in_(video_exts_upper))
+        )
+        videos = result.scalars().all()
+
+        for img in videos:
+            try:
+                exif_data = await loop.run_in_executor(
+                    None, extract_exif, Path(img.file_path)
+                )
+                if exif_data and exif_data.get("exif_date"):
+                    for key, value in exif_data.items():
+                        if hasattr(img, key):
+                            setattr(img, key, value)
+                    updated += 1
+            except Exception:
+                errors += 1
+
+        await session.commit()
+
+    return {"updated": updated, "errors": errors, "total": len(videos)}
+
+
 @router.get("/images")
 async def list_images(
     request: Request,
@@ -364,6 +402,33 @@ async def update_image_status(request: Request, image_id: int, body: ImageStatus
         img.status = body.status
         await session.commit()
     return {"id": image_id, "status": body.status}
+
+
+@router.post("/images/{image_id}/refresh-metadata")
+async def refresh_image_metadata(request: Request, image_id: int) -> Dict[str, Any]:
+    """Re-extract metadata (EXIF/video) for a single image from its source file."""
+    from sqlalchemy import select as sa_select
+    from backend.indexer.exif import extract_exif
+
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        result = await session.execute(sa_select(Image).where(Image.id == image_id))
+        img = result.scalar_one_or_none()
+        if img is None:
+            raise HTTPException(status_code=404, detail="Image not found")
+
+        path = Path(img.file_path)
+        loop = asyncio.get_event_loop()
+        exif_data = await loop.run_in_executor(None, extract_exif, path)
+        if exif_data is None:
+            raise HTTPException(status_code=422, detail="Cannot read file metadata")
+
+        for key, value in exif_data.items():
+            if hasattr(img, key):
+                setattr(img, key, value)
+        await session.commit()
+
+    return {"id": image_id, "refreshed": True}
 
 
 # ---------------------------------------------------------------------------
