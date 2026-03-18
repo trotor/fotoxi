@@ -87,6 +87,7 @@ export interface IndexerStatus {
 export interface AppSettings {
   ollama_model: string
   ollama_url: string
+  ollama_concurrency: number
   ai_language: string
   ai_quality_enabled: boolean
   phash_threshold: number

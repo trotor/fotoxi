@@ -19,6 +19,7 @@ export default function Settings() {
       setForm({
         ollama_model: data.ollama_model,
         ollama_url: data.ollama_url,
+        ollama_concurrency: data.ollama_concurrency,
         ai_language: data.ai_language,
         ai_quality_enabled: data.ai_quality_enabled,
         phash_threshold: data.phash_threshold,
@@ -71,6 +72,23 @@ export default function Settings() {
             placeholder="http://localhost:11434"
             className={inputClass}
           />
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex justify-between text-sm">
+            <label className="text-gray-400">{t('settings.concurrency')}</label>
+            <span className="text-gray-300">{form.ollama_concurrency ?? 1}</span>
+          </div>
+          <input
+            type="range"
+            min="1"
+            max="4"
+            step="1"
+            value={form.ollama_concurrency ?? 1}
+            onChange={e => setForm(f => ({ ...f, ollama_concurrency: Number(e.target.value) }))}
+            className="w-full accent-blue-500"
+          />
+          <p className="text-xs text-gray-500">{t('settings.concurrency_desc')}</p>
         </div>
       </div>
 

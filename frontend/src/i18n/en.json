@@ -90,6 +90,8 @@
   "settings.threshold": "Duplicate sensitivity (pHash threshold)",
   "settings.strict": "Strict",
   "settings.loose": "Loose",
+  "settings.concurrency": "AI parallel tasks",
+  "settings.concurrency_desc": "Number of images analyzed simultaneously. Higher = faster but uses more memory. Requires ~4GB RAM per task.",
   "settings.save": "Save settings",
   "settings.saved": "Saved!",
   "common.back_to_years": "back to years",

@@ -90,6 +90,8 @@
   "settings.threshold": "Duplikaattien herkkyys (pHash-kynnys)",
   "settings.strict": "Tiukka",
   "settings.loose": "Loysa",
+  "settings.concurrency": "AI rinnakkaistehtävät",
+  "settings.concurrency_desc": "Samanaikaisesti analysoitavien kuvien määrä. Suurempi = nopeampi mutta käyttää enemmän muistia. Vaatii ~4 GB RAM per tehtävä.",
   "settings.save": "Tallenna asetukset",
   "settings.saved": "Tallennettu!",
   "common.back_to_years": "takaisin vuosiin",
