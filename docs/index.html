@@ -388,6 +388,17 @@
     <p lang="en">Support for external AI APIs (such as OpenAI, Anthropic, or Google) is planned. This will enable faster analysis without local GPU requirements, and make AI features accessible on any platform.</p>
     <p lang="fi">Tuki ulkoisille AI-rajapinnoille (kuten OpenAI, Anthropic tai Google) on suunnitteilla. Tämä mahdollistaa nopeamman analysoinnin ilman paikallista GPU-vaatimusta ja tuo AI-ominaisuudet saataville kaikille alustoille.</p>
   </div>
+
+  <div class="guide-step">
+    <span class="step-num">&#x26A1;</span>
+    <h3 lang="en">Tip: Enable Ollama parallel processing</h3>
+    <h3 lang="fi">Vinkki: Ollaman rinnakkaiskäsittely</h3>
+    <p lang="en">To speed up AI analysis, set <code>OLLAMA_NUM_PARALLEL=2</code> (or higher on powerful machines) and increase the concurrency slider in Fotoxi Settings. On macOS:</p>
+    <p lang="fi">AI-analyysin nopeuttamiseksi aseta <code>OLLAMA_NUM_PARALLEL=2</code> (tai enemmän tehokkailla koneilla) ja nosta rinnakkaisuusliukusäädintä Fotoxin Asetuksissa. macOS:lla:</p>
+<pre>launchctl setenv OLLAMA_NUM_PARALLEL 2
+# Restart Ollama (close menu bar icon and reopen, or:)
+pkill ollama &amp;&amp; open -a Ollama</pre>
+  </div>
 </section>
 
 <!-- ==================== TECH ==================== -->

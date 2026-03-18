@@ -83,7 +83,7 @@ async def create_app(config: Optional[Config] = None) -> FastAPI:
         on_progress=on_progress,
     )
 
-    app = FastAPI(title="Fotoxi", version="0.1.0")
+    app = FastAPI(title="Fotoxi", version="0.3.0")
 
     # Store state on the app
     app.state.config = config
