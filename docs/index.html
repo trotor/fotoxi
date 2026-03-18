@@ -50,9 +50,8 @@
     .lang-btn:hover { opacity: 0.7; }
     .lang-btn.active { opacity: 1; background: var(--border); }
 
-    [lang="fi"] { display: none; }
-    body.fi [lang="fi"] { display: revert; }
-    body.fi [lang="en"] { display: none; }
+    body:not(.fi) [lang="fi"] { display: none !important; }
+    body.fi [lang="en"] { display: none !important; }
 
     .hero {
       text-align: center;
