@@ -15,10 +15,11 @@ function formatBytes(b: number | null | undefined): string {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onFolderSelect, onTimeNear, onLocationNear, onPrev, onNext }: {
+function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onFolderSelect, onCameraSelect, onTimeNear, onLocationNear, onPrev, onNext }: {
   image: ImageData; onClose: () => void; onStatusChange: (id: number, status: string) => void;
   onRefreshMetadata: (id: number) => void;
-  onFolderSelect: (folder: string) => void; onTimeNear?: (date: string) => void;
+  onFolderSelect: (folder: string) => void; onCameraSelect: (camera: string) => void;
+  onTimeNear?: (date: string) => void;
   onLocationNear?: (lat: number, lon: number) => void;
   onPrev?: () => void; onNext?: () => void;
 }) {
@@ -60,7 +61,7 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onFold
     const time = image.exif_date.slice(11, 16)
     if (time && time !== '00:00') exifParts.push(time)
   }
-  if (image.exif_camera_model) exifParts.push(image.exif_camera_model)
+  // Camera handled separately as clickable
   if (image.exif_aperture != null) exifParts.push(`f/${image.exif_aperture}`)
   if (image.exif_iso != null) exifParts.push(`ISO ${image.exif_iso}`)
   if (image.exif_exposure) exifParts.push(`${image.exif_exposure}s`)
@@ -116,9 +117,20 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onFold
           </div>
 
           {/* EXIF line + nearby button */}
-          {exifParts.length > 0 && (
-            <div className="flex items-center gap-2">
-              <p className="text-xs text-gray-400">{exifParts.join(' · ')}</p>
+          {(exifParts.length > 0 || image.exif_camera_model) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs text-gray-400">
+                {exifParts.join(' · ')}
+                {image.exif_camera_model && exifParts.length > 0 && ' · '}
+              </p>
+              {image.exif_camera_model && (
+                <button
+                  onClick={() => { onCameraSelect(image.exif_camera_model!); onClose() }}
+                  className="text-xs text-orange-400 hover:text-orange-300"
+                >
+                  {image.exif_camera_model}
+                </button>
+              )}
               {image.exif_date && onTimeNear && (
                 <button
                   onClick={() => { onTimeNear(image.exif_date!); onClose() }}
@@ -429,6 +441,11 @@ export default function Search() {
 
   const handleLocationNear = useCallback((lat: number, lon: number) => {
     setLocationNear({ lat, lon })
+  }, [])
+
+  const handleCameraSelect = useCallback((cam: string) => {
+    setCamera(cam)
+    setActiveFilters(f => ({ ...f, camera: cam }))
   }, [])
 
   const { data: folders } = useQuery({
@@ -835,6 +852,7 @@ export default function Search() {
             queryClient.invalidateQueries({ queryKey: ['search'] })
           }}
           onFolderSelect={handleFolderSelect}
+          onCameraSelect={handleCameraSelect}
           onTimeNear={handleTimeNear}
           onLocationNear={handleLocationNear}
           onPrev={() => {
