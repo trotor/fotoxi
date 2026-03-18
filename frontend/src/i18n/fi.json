@@ -118,5 +118,14 @@
   "idx.file_types": "Tiedostotyypit",
   "idx.imgs_per_s": "kuvaa/s",
   "idx.ms_per_img": "ms/kuva",
-  "idx.s_per_img": "s/kuva"
+  "idx.s_per_img": "s/kuva",
+  "help.title": "Ohje ja linkit",
+  "help.docs": "Käyttöohje",
+  "help.github": "Lähdekoodi GitHubissa",
+  "help.shortcuts_title": "Pikanäppäimet",
+  "help.shortcut_keep": "Säilytä kuva & seuraava",
+  "help.shortcut_reject": "Hylkää kuva & seuraava",
+  "help.shortcut_nav": "Edellinen / seuraava kuva",
+  "help.shortcut_close": "Sulje kuvanäkymä",
+  "help.version": "Versio"
 }

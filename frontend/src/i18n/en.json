@@ -118,5 +118,14 @@
   "idx.file_types": "File types",
   "idx.imgs_per_s": "img/s",
   "idx.ms_per_img": "ms/img",
-  "idx.s_per_img": "s/img"
+  "idx.s_per_img": "s/img",
+  "help.title": "Help & Links",
+  "help.docs": "User Guide",
+  "help.github": "Source Code on GitHub",
+  "help.shortcuts_title": "Keyboard Shortcuts",
+  "help.shortcut_keep": "Keep photo & next",
+  "help.shortcut_reject": "Reject photo & next",
+  "help.shortcut_nav": "Previous / next photo",
+  "help.shortcut_close": "Close viewer",
+  "help.version": "Version"
 }
