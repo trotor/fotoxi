@@ -380,6 +380,7 @@ export default function Search() {
       return loaded < lastPage.total ? allPages.length + 1 : undefined
     },
     initialPageParam: 1,
+    refetchInterval: hasAiFilter ? 10000 : false,
   })
 
   // Infinite scroll - IntersectionObserver
