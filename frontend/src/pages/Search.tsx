@@ -481,6 +481,7 @@ export default function Search() {
   const handleStatusChange = useCallback(async (imageId: number, newStatus: string) => {
     await updateImageStatus(imageId, newStatus)
     queryClient.invalidateQueries({ queryKey: ['search'] })
+    setSelectedImage(prev => prev && prev.id === imageId ? { ...prev, status: newStatus } : prev)
   }, [queryClient])
 
   return (
