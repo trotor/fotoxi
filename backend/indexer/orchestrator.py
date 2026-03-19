@@ -47,7 +47,9 @@ class IndexerState:
     recent_log: list[str] = field(default_factory=list)  # Last N log entries
 
     def log(self, msg: str):
-        self.recent_log.append(msg)
+        from datetime import datetime
+        ts = datetime.now().strftime("%H:%M:%S")
+        self.recent_log.append(f"[{ts}] {msg}")
         if len(self.recent_log) > 20:
             self.recent_log = self.recent_log[-20:]
 
