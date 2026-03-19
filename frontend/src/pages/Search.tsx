@@ -568,6 +568,7 @@ export default function Search() {
           { key: 'file_size', label: t('search.size') },
           { key: 'phash', label: t('search.similarity') },
           { key: 'created_at', label: t('search.added') },
+          { key: 'updated_at', label: t('search.updated') },
         ].map(s => (
           <button
             key={s.key}

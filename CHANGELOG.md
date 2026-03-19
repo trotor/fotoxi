@@ -2,6 +2,11 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.3.2] - 2026-03-19
+
+### Added
+- "Updated" sort option in search — sort by last indexed/modified time (`updated_at`)
+
 ## [0.3.1] - 2026-03-19
 
 ### Added
