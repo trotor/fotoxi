@@ -299,8 +299,10 @@ class IndexerOrchestrator:
                             img.dhash = hash_data.get("dhash")
 
                         import datetime as _dt
+                        _now = _dt.datetime.utcnow()
                         img.status = "indexed"
-                        img.indexed_at = _dt.datetime.now(_dt.timezone.utc)
+                        img.indexed_at = _now
+                        img.updated_at = _now
                         await session.commit()
 
                     # Evict cloud file after processing
@@ -473,8 +475,10 @@ class IndexerOrchestrator:
                                 img.ai_tags_fi = tags_json
                             img.ai_quality_score = ai_result.get("quality_score")
                             img.ai_model = self.config.ollama_model
+                            _now = datetime.datetime.utcnow()
                             img.status = "indexed"
-                            img.indexed_at = datetime.datetime.utcnow()
+                            img.indexed_at = _now
+                            img.updated_at = _now
                             # Log AI result
                             tag_str = ", ".join(tags[:5]) if tags else ""
                             self.state.log(f"🤖 {image.file_name}: {desc[:60]}{'...' if len(desc)>60 else ''}")

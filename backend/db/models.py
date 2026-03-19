@@ -68,11 +68,12 @@ class Image(Base):
 
     # Timestamps
     indexed_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    status_changed_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, nullable=False, default=func.now()
     )
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, nullable=False, default=func.now(), onupdate=func.now()
+        DateTime, nullable=False, default=func.now()
     )
 
     # Relationships

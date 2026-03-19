@@ -58,6 +58,7 @@ def _image_to_dict(img: Image) -> Dict[str, Any]:
         "status": img.status,
         "error_message": img.error_message,
         "indexed_at": img.indexed_at.isoformat() if img.indexed_at is not None else None,
+        "status_changed_at": img.status_changed_at.isoformat() if img.status_changed_at is not None else None,
         "created_at": img.created_at.isoformat() if img.created_at is not None else None,
         "updated_at": img.updated_at.isoformat() if img.updated_at is not None else None,
     }
@@ -399,7 +400,9 @@ async def update_image_status(request: Request, image_id: int, body: ImageStatus
         img = result.scalar_one_or_none()
         if img is None:
             raise HTTPException(status_code=404, detail="Image not found")
+        import datetime
         img.status = body.status
+        img.status_changed_at = datetime.datetime.utcnow()
         await session.commit()
     return {"id": image_id, "status": body.status}
 
@@ -423,9 +426,11 @@ async def refresh_image_metadata(request: Request, image_id: int) -> Dict[str, A
         if exif_data is None:
             raise HTTPException(status_code=422, detail="Cannot read file metadata")
 
+        import datetime
         for key, value in exif_data.items():
             if hasattr(img, key):
                 setattr(img, key, value)
+        img.updated_at = datetime.datetime.utcnow()
         await session.commit()
 
     return {"id": image_id, "refreshed": True}

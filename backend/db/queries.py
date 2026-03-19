@@ -248,14 +248,17 @@ async def resolve_duplicate_group(
     image_result = await session.execute(image_stmt)
     images = {img.id: img for img in image_result.scalars().all()}
 
+    _now = datetime.datetime.utcnow()
     for member in members:
         if member.image_id in keep_ids:
             member.user_choice = "keep"
             if member.image_id in images:
                 images[member.image_id].status = "kept"
+                images[member.image_id].status_changed_at = _now
         elif member.image_id in reject_ids:
             member.user_choice = "reject"
             if member.image_id in images:
                 images[member.image_id].status = "rejected"
+                images[member.image_id].status_changed_at = _now
 
     await session.commit()
