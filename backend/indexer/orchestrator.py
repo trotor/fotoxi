@@ -428,9 +428,10 @@ class IndexerOrchestrator:
 
             image_id = image.id
             file_path = Path(image.file_path)
-            self.state.ai_current_file = image.file_name
 
             async with semaphore:
+                self.state.ai_current_file = image.file_name
+                self._notify()
                 if self._stop_event.is_set():
                     return
                 try:
