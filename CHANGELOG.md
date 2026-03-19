@@ -2,6 +2,16 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.3.1] - 2026-03-19
+
+### Added
+- Timestamp on indexing log entries (`[HH:MM:SS]` prefix)
+- Clickable camera name in preview modal filters by camera model
+
+### Fixed
+- AI progress bar now shows correct current file (was stuck on first file)
+- Preview modal "Clear kept" button now updates UI immediately
+
 ## [0.3.0] - 2026-03-18
 
 ### Added
