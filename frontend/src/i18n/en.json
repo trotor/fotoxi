@@ -35,6 +35,7 @@
   "search.images": "images",
   "search.loading": "Loading...",
   "search.no_results": "No results.",
+  "search.reveal_finder": "Show in Finder",
   "search.keyboard_hints": "Enter = keep · Backspace = reject · Arrows = prev/next · Esc = close",
   "dup.group": "Group",
   "dup.images": "images",

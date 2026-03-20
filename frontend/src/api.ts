@@ -159,6 +159,11 @@ export async function updateImageStatus(id: number, status: string): Promise<voi
   if (!res.ok) throw new Error(`Status update failed: ${res.status}`)
 }
 
+export async function revealImageInFinder(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/images/${id}/reveal`, { method: 'POST' })
+  if (!res.ok) throw new Error(`Reveal failed: ${res.status}`)
+}
+
 export async function refreshImageMetadata(id: number): Promise<void> {
   const res = await fetch(`${BASE}/images/${id}/refresh-metadata`, { method: 'POST' })
   if (!res.ok) throw new Error(`Metadata refresh failed: ${res.status}`)

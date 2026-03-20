@@ -407,6 +407,27 @@ async def update_image_status(request: Request, image_id: int, body: ImageStatus
     return {"id": image_id, "status": body.status}
 
 
+@router.post("/images/{image_id}/reveal")
+async def reveal_image_in_finder(request: Request, image_id: int) -> Dict[str, Any]:
+    """Open the image's parent folder in Finder with the file selected."""
+    from sqlalchemy import select as sa_select
+    import subprocess
+
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        result = await session.execute(sa_select(Image).where(Image.id == image_id))
+        img = result.scalar_one_or_none()
+        if img is None:
+            raise HTTPException(status_code=404, detail="Image not found")
+
+    file_path = Path(img.file_path)
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    subprocess.Popen(["open", "-R", str(file_path)])
+    return {"id": image_id, "revealed": True}
+
+
 @router.post("/images/{image_id}/refresh-metadata")
 async def refresh_image_metadata(request: Request, image_id: int) -> Dict[str, Any]:
     """Re-extract metadata (EXIF/video) for a single image from its source file."""

@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImageData } from '../api'
-import { searchImages, thumbUrl, fullUrl, updateImageStatus, refreshImageMetadata, getImageFolders, excludeFolder } from '../api'
+import { searchImages, thumbUrl, fullUrl, updateImageStatus, refreshImageMetadata, revealImageInFinder, getImageFolders, excludeFolder } from '../api'
 import FilterBar from '../components/FilterBar'
 import { useI18n } from '../i18n/useTranslation'
 
@@ -171,14 +171,23 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onFold
 
           {/* Path + actions row */}
           <div className="flex items-center justify-between pt-1 border-t border-gray-800">
-            {image.file_path && (
+            <div className="flex items-center gap-1 min-w-0 max-w-[60%]">
+              {image.file_path && (
+                <button
+                  onClick={() => { onFolderSelect(image.file_path.split('/').slice(0, -1).join('/')); onClose() }}
+                  className="text-purple-400 text-xs hover:text-purple-300 truncate"
+                >
+                  {image.file_path.split('/').slice(-4).join('/')}
+                </button>
+              )}
               <button
-                onClick={() => { onFolderSelect(image.file_path.split('/').slice(0, -1).join('/')); onClose() }}
-                className="text-purple-400 text-xs hover:text-purple-300 truncate max-w-[60%]"
+                onClick={() => revealImageInFinder(image.id)}
+                className="text-xs text-gray-500 hover:text-gray-300 flex-shrink-0"
+                title={t('search.reveal_finder')}
               >
-                {image.file_path.split('/').slice(-4).join('/')}
+                &#x1F4C2;
               </button>
-            )}
+            </div>
             <div className="flex gap-2 flex-shrink-0">
               {image.status === 'kept' ? (
                 <button onClick={() => onStatusChange(image.id, 'indexed')}

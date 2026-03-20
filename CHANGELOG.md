@@ -2,6 +2,11 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.3.4] - 2026-03-20
+
+### Added
+- "Show in Finder" button (📂) in preview modal — opens Finder with the file selected for drag & drop
+
 ## [0.3.3] - 2026-03-19
 
 ### Fixed
