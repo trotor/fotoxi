@@ -368,7 +368,7 @@ export default function Search() {
   const [locationNear, setLocationNear] = useState<{ lat: number; lon: number } | null>(null)
   const [locationRadius, setLocationRadius] = useState(1)
   const [hasAiFilter, setHasAiFilter] = useState(false)
-  const [customTagFilter, setCustomTagFilter] = useState<false | 'include' | 'only'>(false)
+  const [showTagged, setShowTagged] = useState(false)
   const [showFolderPicker, setShowFolderPicker] = useState(false)
 
   const { data: settingsData } = useQuery({ queryKey: ['settings'], queryFn: getSettings })
@@ -410,7 +410,7 @@ export default function Search() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['search', submittedQuery, activeFilters, sortBy, sortOrder, timeRange, locationNear, locationRadius, hasAiFilter, customTagFilter],
+    queryKey: ['search', submittedQuery, activeFilters, sortBy, sortOrder, timeRange, locationNear, locationRadius, hasAiFilter, showTagged],
     queryFn: ({ pageParam = 1 }) =>
       searchImages({
         q: submittedQuery || undefined,
@@ -418,15 +418,14 @@ export default function Search() {
         date_to: activeFilters.dateTo || undefined,
         camera: activeFilters.camera || undefined,
         min_quality: activeFilters.minQuality ? Number(activeFilters.minQuality) : undefined,
-        status: customTagFilter === 'only' ? 'rejected' : (activeFilters.status || undefined),
-        exclude: customTagFilter === 'only' ? undefined : (activeFilters.status ? undefined : (activeFilters.exclude || undefined)),
+        status: activeFilters.status || undefined,
+        exclude: activeFilters.status ? undefined : (activeFilters.exclude || undefined),
         folder: activeFilters.folder || undefined,
         media: activeFilters.media !== 'all' ? activeFilters.media : undefined,
         time_near: activeFilters.timeNear || undefined,
         time_range: activeFilters.timeNear ? timeRange : undefined,
         has_ai: hasAiFilter || undefined,
-        custom_tag: customTagFilter === 'only' ? '__any__' : undefined,
-        include_tagged: customTagFilter === 'include' || undefined,
+        include_tagged: showTagged || undefined,
         lat: locationNear?.lat,
         lon: locationNear?.lon,
         radius: locationNear ? locationRadius : undefined,
@@ -663,15 +662,13 @@ export default function Search() {
         })}
         <span className="text-gray-700 mx-1">|</span>
         <button
-          onClick={() => setCustomTagFilter(prev => prev === false ? 'include' : prev === 'include' ? 'only' : false)}
+          onClick={() => setShowTagged(prev => !prev)}
           className={`text-xs px-3 py-1 rounded transition-colors border ${
-            customTagFilter === 'only' ? 'bg-yellow-600 text-white border-transparent'
-            : customTagFilter === 'include' ? 'bg-yellow-800 text-yellow-200 border-transparent'
+            showTagged ? 'bg-yellow-700 text-yellow-100 border-transparent'
             : 'bg-gray-900 text-gray-600 border-gray-700'
           }`}
-          title={customTagFilter === false ? t('search.tag_show') : customTagFilter === 'include' ? t('search.tag_only') : t('search.tag_hide')}
         >
-          ★ {customTagFilter === 'only' ? t('search.tag_only_label') : customTagFilter === 'include' ? t('search.tag_include_label') : customTagLabel}
+          ★ {customTagLabel}
         </button>
       </div>
 
