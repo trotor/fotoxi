@@ -605,17 +605,6 @@ export default function Search() {
         >
           🤖 AI
         </button>
-        <button
-          onClick={() => setCustomTagFilter(prev => prev === false ? 'include' : prev === 'include' ? 'only' : false)}
-          className={`text-xs px-2 py-1 rounded transition-colors ${
-            customTagFilter === 'only' ? 'bg-yellow-600 text-white'
-            : customTagFilter === 'include' ? 'bg-yellow-800 text-yellow-200'
-            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-          }`}
-          title={customTagFilter === false ? t('search.tag_show') : customTagFilter === 'include' ? t('search.tag_only') : t('search.tag_hide')}
-        >
-          ★ {customTagFilter === 'only' ? t('search.tag_only_label') : customTagFilter === 'include' ? t('search.tag_include_label') : customTagLabel}
-        </button>
         <span className="text-gray-700 mx-1">|</span>
         <span className="text-xs text-gray-500">{t('search.sort')}</span>
         {[
@@ -672,6 +661,18 @@ export default function Search() {
             </button>
           )
         })}
+        <span className="text-gray-700 mx-1">|</span>
+        <button
+          onClick={() => setCustomTagFilter(prev => prev === false ? 'include' : prev === 'include' ? 'only' : false)}
+          className={`text-xs px-3 py-1 rounded transition-colors border ${
+            customTagFilter === 'only' ? 'bg-yellow-600 text-white border-transparent'
+            : customTagFilter === 'include' ? 'bg-yellow-800 text-yellow-200 border-transparent'
+            : 'bg-gray-900 text-gray-600 border-gray-700'
+          }`}
+          title={customTagFilter === false ? t('search.tag_show') : customTagFilter === 'include' ? t('search.tag_only') : t('search.tag_hide')}
+        >
+          ★ {customTagFilter === 'only' ? t('search.tag_only_label') : customTagFilter === 'include' ? t('search.tag_include_label') : customTagLabel}
+        </button>
       </div>
 
       {/* Time proximity filter with adjustable range */}
