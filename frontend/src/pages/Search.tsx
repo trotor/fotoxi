@@ -368,7 +368,7 @@ export default function Search() {
   const [locationNear, setLocationNear] = useState<{ lat: number; lon: number } | null>(null)
   const [locationRadius, setLocationRadius] = useState(1)
   const [hasAiFilter, setHasAiFilter] = useState(false)
-  const [customTagFilter, setCustomTagFilter] = useState(false)
+  const [customTagFilter, setCustomTagFilter] = useState<false | 'include' | 'only'>(false)
   const [showFolderPicker, setShowFolderPicker] = useState(false)
 
   const { data: settingsData } = useQuery({ queryKey: ['settings'], queryFn: getSettings })
@@ -418,14 +418,15 @@ export default function Search() {
         date_to: activeFilters.dateTo || undefined,
         camera: activeFilters.camera || undefined,
         min_quality: activeFilters.minQuality ? Number(activeFilters.minQuality) : undefined,
-        status: customTagFilter ? 'rejected' : (activeFilters.status || undefined),
-        exclude: customTagFilter ? undefined : (activeFilters.status ? undefined : (activeFilters.exclude || undefined)),
+        status: customTagFilter === 'only' ? 'rejected' : (activeFilters.status || undefined),
+        exclude: customTagFilter === 'only' ? undefined : (activeFilters.status ? undefined : (activeFilters.exclude || undefined)),
         folder: activeFilters.folder || undefined,
         media: activeFilters.media !== 'all' ? activeFilters.media : undefined,
         time_near: activeFilters.timeNear || undefined,
         time_range: activeFilters.timeNear ? timeRange : undefined,
         has_ai: hasAiFilter || undefined,
-        custom_tag: customTagFilter ? '__any__' : undefined,
+        custom_tag: customTagFilter === 'only' ? '__any__' : undefined,
+        include_tagged: customTagFilter === 'include' || undefined,
         lat: locationNear?.lat,
         lon: locationNear?.lon,
         radius: locationNear ? locationRadius : undefined,
@@ -605,12 +606,15 @@ export default function Search() {
           🤖 AI
         </button>
         <button
-          onClick={() => setCustomTagFilter(!customTagFilter)}
+          onClick={() => setCustomTagFilter(prev => prev === false ? 'include' : prev === 'include' ? 'only' : false)}
           className={`text-xs px-2 py-1 rounded transition-colors ${
-            customTagFilter ? 'bg-yellow-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            customTagFilter === 'only' ? 'bg-yellow-600 text-white'
+            : customTagFilter === 'include' ? 'bg-yellow-800 text-yellow-200'
+            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
           }`}
+          title={customTagFilter === false ? t('search.tag_show') : customTagFilter === 'include' ? t('search.tag_only') : t('search.tag_hide')}
         >
-          ★ {customTagLabel}
+          ★ {customTagFilter === 'only' ? t('search.tag_only_label') : customTagFilter === 'include' ? t('search.tag_include_label') : customTagLabel}
         </button>
         <span className="text-gray-700 mx-1">|</span>
         <span className="text-xs text-gray-500">{t('search.sort')}</span>

@@ -6,6 +6,7 @@ All notable changes to Fotoxi are documented here.
 
 ### Added
 - **Custom tag system** — yellow ★ button to label and set aside special photos (e.g. sentimental)
+- **Three-state ★ toggle** in search: off → "+ personal" (show tagged alongside normal) → "only personal" (show only tagged) → off
   - Tagged photos are hidden from default view (status → rejected) but stored separately from regular rejects
   - New ★ filter button in search bar shows only tagged photos
   - Tag label is configurable in Settings (default: "sentimental")

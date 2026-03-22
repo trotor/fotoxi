@@ -110,6 +110,7 @@ export async function searchImages(params: {
   time_range?: number
   has_ai?: boolean
   custom_tag?: string
+  include_tagged?: boolean
   lat?: number
   lon?: number
   radius?: number
@@ -132,6 +133,7 @@ export async function searchImages(params: {
   if (params.time_range) query.set('time_range', String(params.time_range))
   if (params.has_ai) query.set('has_ai', 'true')
   if (params.custom_tag) query.set('custom_tag', params.custom_tag)
+  if (params.include_tagged) query.set('include_tagged', 'true')
   if (params.lat != null) query.set('lat', String(params.lat))
   if (params.lon != null) query.set('lon', String(params.lon))
   if (params.radius != null) query.set('radius', String(params.radius))

@@ -25,6 +25,7 @@ async def search_images(
     time_range: int = 120,
     has_ai: Optional[bool] = None,
     custom_tag: Optional[str] = None,
+    include_tagged: bool = False,
     lat: Optional[float] = None,
     lon: Optional[float] = None,
     radius: Optional[float] = None,
@@ -57,12 +58,19 @@ async def search_images(
     stmt = select(Image)
 
     # Status filter
+    from sqlalchemy import or_
     if status:
         stmt = stmt.where(Image.status == status)
     elif exclude_statuses:
-        # Always exclude missing/error plus user-specified
         all_excludes = set(exclude_statuses) | {"missing", "error"}
-        stmt = stmt.where(Image.status.notin_(list(all_excludes)))
+        if include_tagged:
+            # Show normal images + tagged ones even if rejected
+            stmt = stmt.where(or_(
+                Image.status.notin_(list(all_excludes)),
+                Image.custom_tag.is_not(None),
+            ))
+        else:
+            stmt = stmt.where(Image.status.notin_(list(all_excludes)))
     else:
         stmt = stmt.where(Image.status.notin_(["missing", "error"]))
 
