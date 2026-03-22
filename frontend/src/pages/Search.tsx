@@ -205,7 +205,7 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onCust
                   className="bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs px-3 py-1 rounded">
                   {t('search.clear')} kept
                 </button>
-              ) : isRejected ? (
+              ) : isRejected && !image.custom_tag ? (
                 <button onClick={() => { onStatusChange(image.id, 'indexed'); onNext?.() }}
                   className="bg-green-700 hover:bg-green-600 text-white text-xs px-3 py-1 rounded">
                   {t('search.restore_next')}
@@ -251,7 +251,7 @@ function ImageCard({ image, onClick, onStatusChange, onCustomTag, customTagLabel
   const isRejected = image.status === 'rejected'
   return (
     <div
-      className={`relative aspect-square bg-gray-800 rounded overflow-hidden cursor-pointer group transition-transform duration-150 hover:scale-105 hover:z-10 ${isRejected ? 'opacity-40 hover:opacity-80' : ''}`}
+      className={`relative aspect-square bg-gray-800 rounded overflow-hidden cursor-pointer group transition-transform duration-150 hover:scale-105 hover:z-10 ${isRejected && !image.custom_tag ? 'opacity-40 hover:opacity-80' : ''}`}
       onClick={onClick}
     >
       <img
@@ -318,8 +318,8 @@ function ImageCard({ image, onClick, onStatusChange, onCustomTag, customTagLabel
             ✕
           </button>
         )}
-        {/* Restore button - for rejected images */}
-        {isRejected && (
+        {/* Restore button - for rejected images (not tagged) */}
+        {isRejected && !image.custom_tag && (
           <button
             onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, 'indexed') }}
             className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-blue-500 hover:bg-blue-400 text-white shadow-lg hover:scale-110 transition-all"
