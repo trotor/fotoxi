@@ -58,21 +58,17 @@ async def search_images(
     stmt = select(Image)
 
     # Status filter
-    from sqlalchemy import or_
     if status:
         stmt = stmt.where(Image.status == status)
     elif exclude_statuses:
         all_excludes = set(exclude_statuses) | {"missing", "error"}
-        if include_tagged:
-            # Show normal images + tagged ones even if rejected
-            stmt = stmt.where(or_(
-                Image.status.notin_(list(all_excludes)),
-                Image.custom_tag.is_not(None),
-            ))
-        else:
-            stmt = stmt.where(Image.status.notin_(list(all_excludes)))
+        stmt = stmt.where(Image.status.notin_(list(all_excludes)))
     else:
         stmt = stmt.where(Image.status.notin_(["missing", "error"]))
+
+    # Hide tagged images by default, show when include_tagged is set
+    if not include_tagged and not custom_tag:
+        stmt = stmt.where(Image.custom_tag.is_(None))
 
     # Media type filter
     if media == "video":

@@ -430,8 +430,6 @@ async def update_image_tag(request: Request, image_id: int, body: ImageTagUpdate
             raise HTTPException(status_code=404, detail="Image not found")
         img.custom_tag = body.custom_tag
         img.status_changed_at = datetime.datetime.utcnow()
-        if body.custom_tag:
-            img.status = "rejected"
         await session.commit()
     return {"id": image_id, "custom_tag": body.custom_tag, "status": img.status}
 

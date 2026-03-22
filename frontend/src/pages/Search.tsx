@@ -543,7 +543,7 @@ export default function Search() {
   const handleCustomTag = useCallback(async (imageId: number) => {
     await setImageCustomTag(imageId, customTagLabel)
     queryClient.invalidateQueries({ queryKey: ['search'] })
-    setSelectedImage(prev => prev && prev.id === imageId ? { ...prev, custom_tag: customTagLabel, status: 'rejected' } : prev)
+    setSelectedImage(prev => prev && prev.id === imageId ? { ...prev, custom_tag: customTagLabel } : prev)
   }, [customTagLabel, queryClient])
 
   return (
