@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImageData } from '../api'
-import { searchImages, thumbUrl, fullUrl, updateImageStatus, refreshImageMetadata, revealImageInFinder, getImageFolders, excludeFolder } from '../api'
+import { searchImages, thumbUrl, fullUrl, updateImageStatus, refreshImageMetadata, revealImageInFinder, setImageCustomTag, getImageFolders, excludeFolder, getSettings } from '../api'
 import FilterBar from '../components/FilterBar'
 import { useI18n } from '../i18n/useTranslation'
 
@@ -15,9 +15,10 @@ function formatBytes(b: number | null | undefined): string {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onFolderSelect, onCameraSelect, onTimeNear, onLocationNear, onPrev, onNext }: {
+function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onCustomTag, customTagLabel, onFolderSelect, onCameraSelect, onTimeNear, onLocationNear, onPrev, onNext }: {
   image: ImageData; onClose: () => void; onStatusChange: (id: number, status: string) => void;
   onRefreshMetadata: (id: number) => void;
+  onCustomTag: (id: number) => void; customTagLabel: string;
   onFolderSelect: (folder: string) => void; onCameraSelect: (camera: string) => void;
   onTimeNear?: (date: string) => void;
   onLocationNear?: (lat: number, lon: number) => void;
@@ -189,6 +190,16 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onFold
               </button>
             </div>
             <div className="flex gap-2 flex-shrink-0">
+              {!image.custom_tag && image.status !== 'kept' && !isRejected && (
+                <button onClick={() => { onCustomTag(image.id); onNext?.() }}
+                  className="bg-yellow-700 hover:bg-yellow-600 text-yellow-100 text-xs px-3 py-1 rounded"
+                  title={customTagLabel}>
+                  ★
+                </button>
+              )}
+              {image.custom_tag && (
+                <span className="bg-yellow-700/50 text-yellow-200 text-xs px-3 py-1 rounded">★ {image.custom_tag}</span>
+              )}
               {image.status === 'kept' ? (
                 <button onClick={() => onStatusChange(image.id, 'indexed')}
                   className="bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs px-3 py-1 rounded">
@@ -233,8 +244,10 @@ const STATUS_BADGES: Record<string, { label: string; bg: string; text: string } 
   error: { label: 'Virhe', bg: 'bg-red-900', text: 'text-red-300' },
 }
 
-function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: ImageData; onClick: () => void; onStatusChange: (id: number, status: string) => void; onFolderSelect: (folder: string) => void }) {
-  const badge = STATUS_BADGES[image.status]
+function ImageCard({ image, onClick, onStatusChange, onCustomTag, customTagLabel, onFolderSelect }: { image: ImageData; onClick: () => void; onStatusChange: (id: number, status: string) => void; onCustomTag: (id: number) => void; customTagLabel: string; onFolderSelect: (folder: string) => void }) {
+  const badge = image.custom_tag
+    ? { label: image.custom_tag, bg: 'bg-yellow-600', text: 'text-yellow-100' }
+    : STATUS_BADGES[image.status]
   const isRejected = image.status === 'rejected'
   return (
     <div
@@ -271,6 +284,18 @@ function ImageCard({ image, onClick, onStatusChange, onFolderSelect }: { image: 
           <span className="bg-black/70 text-green-300 text-xs px-1 py-0.5 rounded">📍</span>
         )}
       </div>
+      {/* Custom tag button on hover - left side */}
+      {image.status !== 'kept' && !image.custom_tag && (
+        <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-all">
+          <button
+            onClick={(e) => { e.stopPropagation(); onCustomTag(image.id) }}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-yellow-600 hover:bg-yellow-500 text-white shadow-lg hover:scale-110 transition-all"
+            title={customTagLabel}
+          >
+            ★
+          </button>
+        </div>
+      )}
       {/* Quick action buttons on hover */}
       <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
         {/* Keep button - only for non-kept, non-rejected */}
@@ -343,7 +368,11 @@ export default function Search() {
   const [locationNear, setLocationNear] = useState<{ lat: number; lon: number } | null>(null)
   const [locationRadius, setLocationRadius] = useState(1)
   const [hasAiFilter, setHasAiFilter] = useState(false)
+  const [customTagFilter, setCustomTagFilter] = useState(false)
   const [showFolderPicker, setShowFolderPicker] = useState(false)
+
+  const { data: settingsData } = useQuery({ queryKey: ['settings'], queryFn: getSettings })
+  const customTagLabel = settingsData?.custom_tag_label || 'sentimental'
   const [activeFilters, setActiveFilters] = useState({
     dateFrom: '',
     dateTo: '',
@@ -381,7 +410,7 @@ export default function Search() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery({
-    queryKey: ['search', submittedQuery, activeFilters, sortBy, sortOrder, timeRange, locationNear, locationRadius, hasAiFilter],
+    queryKey: ['search', submittedQuery, activeFilters, sortBy, sortOrder, timeRange, locationNear, locationRadius, hasAiFilter, customTagFilter],
     queryFn: ({ pageParam = 1 }) =>
       searchImages({
         q: submittedQuery || undefined,
@@ -389,13 +418,14 @@ export default function Search() {
         date_to: activeFilters.dateTo || undefined,
         camera: activeFilters.camera || undefined,
         min_quality: activeFilters.minQuality ? Number(activeFilters.minQuality) : undefined,
-        status: activeFilters.status || undefined,
-        exclude: activeFilters.status ? undefined : (activeFilters.exclude || undefined),
+        status: customTagFilter ? 'rejected' : (activeFilters.status || undefined),
+        exclude: customTagFilter ? undefined : (activeFilters.status ? undefined : (activeFilters.exclude || undefined)),
         folder: activeFilters.folder || undefined,
         media: activeFilters.media !== 'all' ? activeFilters.media : undefined,
         time_near: activeFilters.timeNear || undefined,
         time_range: activeFilters.timeNear ? timeRange : undefined,
         has_ai: hasAiFilter || undefined,
+        custom_tag: customTagFilter ? '__any__' : undefined,
         lat: locationNear?.lat,
         lon: locationNear?.lon,
         radius: locationNear ? locationRadius : undefined,
@@ -500,15 +530,21 @@ export default function Search() {
     })
   }, [])
 
+  const queryClient = useQueryClient()
   const allImages = data?.pages.flatMap(p => p.images) ?? []
   const total = data?.pages[0]?.total ?? 0
-  const queryClient = useQueryClient()
 
   const handleStatusChange = useCallback(async (imageId: number, newStatus: string) => {
     await updateImageStatus(imageId, newStatus)
     queryClient.invalidateQueries({ queryKey: ['search'] })
     setSelectedImage(prev => prev && prev.id === imageId ? { ...prev, status: newStatus } : prev)
   }, [queryClient])
+
+  const handleCustomTag = useCallback(async (imageId: number) => {
+    await setImageCustomTag(imageId, customTagLabel)
+    queryClient.invalidateQueries({ queryKey: ['search'] })
+    setSelectedImage(prev => prev && prev.id === imageId ? { ...prev, custom_tag: customTagLabel, status: 'rejected' } : prev)
+  }, [customTagLabel, queryClient])
 
   return (
     <div>
@@ -567,6 +603,14 @@ export default function Search() {
           }`}
         >
           🤖 AI
+        </button>
+        <button
+          onClick={() => setCustomTagFilter(!customTagFilter)}
+          className={`text-xs px-2 py-1 rounded transition-colors ${
+            customTagFilter ? 'bg-yellow-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+          }`}
+        >
+          ★ {customTagLabel}
         </button>
         <span className="text-gray-700 mx-1">|</span>
         <span className="text-xs text-gray-500">{t('search.sort')}</span>
@@ -819,7 +863,7 @@ export default function Search() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-4">
             {allImages.map(img => (
-              <ImageCard key={img.id} image={img} onClick={() => setSelectedImage(img)} onStatusChange={handleStatusChange} onFolderSelect={handleFolderSelect} />
+              <ImageCard key={img.id} image={img} onClick={() => setSelectedImage(img)} onStatusChange={handleStatusChange} onCustomTag={handleCustomTag} customTagLabel={customTagLabel} onFolderSelect={handleFolderSelect} />
             ))}
           </div>
 
@@ -861,6 +905,8 @@ export default function Search() {
             await refreshImageMetadata(id)
             queryClient.invalidateQueries({ queryKey: ['search'] })
           }}
+          onCustomTag={handleCustomTag}
+          customTagLabel={customTagLabel}
           onFolderSelect={handleFolderSelect}
           onCameraSelect={handleCameraSelect}
           onTimeNear={handleTimeNear}

@@ -56,6 +56,7 @@ def _image_to_dict(img: Image) -> Dict[str, Any]:
         "ai_quality_score": img.ai_quality_score,
         "ai_model": img.ai_model,
         "status": img.status,
+        "custom_tag": img.custom_tag,
         "error_message": img.error_message,
         "indexed_at": img.indexed_at.isoformat() if img.indexed_at is not None else None,
         "status_changed_at": img.status_changed_at.isoformat() if img.status_changed_at is not None else None,
@@ -122,6 +123,7 @@ async def list_images(
     time_near: Optional[str] = None,
     time_range: int = 120,
     has_ai: Optional[bool] = None,
+    custom_tag: Optional[str] = None,
     lat: Optional[float] = None,
     lon: Optional[float] = None,
     radius: Optional[float] = None,
@@ -147,6 +149,7 @@ async def list_images(
             time_near=time_near,
             time_range=time_range,
             has_ai=has_ai,
+            custom_tag=custom_tag,
             lat=lat,
             lon=lon,
             radius=radius,
@@ -405,6 +408,30 @@ async def update_image_status(request: Request, image_id: int, body: ImageStatus
         img.status_changed_at = datetime.datetime.utcnow()
         await session.commit()
     return {"id": image_id, "status": body.status}
+
+
+class ImageTagUpdate(BaseModel):
+    custom_tag: Optional[str] = None
+
+
+@router.patch("/images/{image_id}/tag")
+async def update_image_tag(request: Request, image_id: int, body: ImageTagUpdate) -> Dict[str, Any]:
+    """Set or clear custom_tag on an image. Setting a tag also rejects the image."""
+    from sqlalchemy import select as sa_select
+    import datetime
+
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        result = await session.execute(sa_select(Image).where(Image.id == image_id))
+        img = result.scalar_one_or_none()
+        if img is None:
+            raise HTTPException(status_code=404, detail="Image not found")
+        img.custom_tag = body.custom_tag
+        img.status_changed_at = datetime.datetime.utcnow()
+        if body.custom_tag:
+            img.status = "rejected"
+        await session.commit()
+    return {"id": image_id, "custom_tag": body.custom_tag, "status": img.status}
 
 
 @router.post("/images/{image_id}/reveal")
@@ -766,6 +793,7 @@ class SettingsUpdate(BaseModel):
     exclude_patterns: Optional[List[str]] = None
     auto_process_on_start: Optional[bool] = None
     ui_language: Optional[str] = None
+    custom_tag_label: Optional[str] = None
 
 
 @router.get("/settings")
@@ -865,6 +893,7 @@ async def _save_settings_to_db(request: Request) -> None:
         "source_dirs", "ollama_model", "ollama_url", "ai_language",
         "ai_quality_enabled", "phash_threshold", "burst_time_window",
         "ollama_concurrency", "exclude_patterns", "auto_process_on_start", "ui_language",
+        "custom_tag_label",
     ]
     config_dict = dataclasses.asdict(config)
 

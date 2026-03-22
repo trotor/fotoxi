@@ -2,6 +2,19 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.0] - 2026-03-22
+
+### Added
+- **Custom tag system** — yellow ★ button to label and set aside special photos (e.g. sentimental)
+  - Tagged photos are hidden from default view (status → rejected) but stored separately from regular rejects
+  - New ★ filter button in search bar shows only tagged photos
+  - Tag label is configurable in Settings (default: "sentimental")
+  - Yellow badge on tagged photos distinguishes them from regular rejected ones
+  - Works in both grid view and preview modal
+- `custom_tag` column with Alembic migration
+- `PATCH /api/images/{id}/tag` endpoint
+- `custom_tag` search filter parameter
+
 ## [0.3.4] - 2026-03-20
 
 ### Added

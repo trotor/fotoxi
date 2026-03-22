@@ -65,6 +65,7 @@ class Image(Base):
     # Status
     status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    custom_tag: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Timestamps
     indexed_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)

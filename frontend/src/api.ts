@@ -23,6 +23,7 @@ export interface ImageData {
   ai_quality_score: number | null
   ai_model: string | null
   status: string
+  custom_tag: string | null
   source_type: string
   indexed_at: string | null
 }
@@ -91,6 +92,7 @@ export interface AppSettings {
   ai_language: string
   ai_quality_enabled: boolean
   phash_threshold: number
+  custom_tag_label: string
   source_dirs: string[]
 }
 
@@ -107,6 +109,7 @@ export async function searchImages(params: {
   time_near?: string
   time_range?: number
   has_ai?: boolean
+  custom_tag?: string
   lat?: number
   lon?: number
   radius?: number
@@ -128,6 +131,7 @@ export async function searchImages(params: {
   if (params.time_near) query.set('time_near', params.time_near)
   if (params.time_range) query.set('time_range', String(params.time_range))
   if (params.has_ai) query.set('has_ai', 'true')
+  if (params.custom_tag) query.set('custom_tag', params.custom_tag)
   if (params.lat != null) query.set('lat', String(params.lat))
   if (params.lon != null) query.set('lon', String(params.lon))
   if (params.radius != null) query.set('radius', String(params.radius))
@@ -157,6 +161,15 @@ export async function updateImageStatus(id: number, status: string): Promise<voi
     body: JSON.stringify({ status }),
   })
   if (!res.ok) throw new Error(`Status update failed: ${res.status}`)
+}
+
+export async function setImageCustomTag(id: number, custom_tag: string | null): Promise<void> {
+  const res = await fetch(`${BASE}/images/${id}/tag`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ custom_tag }),
+  })
+  if (!res.ok) throw new Error(`Tag update failed: ${res.status}`)
 }
 
 export async function revealImageInFinder(id: number): Promise<void> {

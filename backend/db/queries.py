@@ -24,6 +24,7 @@ async def search_images(
     time_near: Optional[str] = None,
     time_range: int = 120,
     has_ai: Optional[bool] = None,
+    custom_tag: Optional[str] = None,
     lat: Optional[float] = None,
     lon: Optional[float] = None,
     radius: Optional[float] = None,
@@ -85,6 +86,12 @@ async def search_images(
     # AI description filter
     if has_ai:
         stmt = stmt.where(Image.ai_description.is_not(None))
+
+    # Custom tag filter
+    if custom_tag == "__any__":
+        stmt = stmt.where(Image.custom_tag.is_not(None))
+    elif custom_tag:
+        stmt = stmt.where(Image.custom_tag == custom_tag)
 
     # GPS proximity filter (bounding box approximation)
     if lat is not None and lon is not None and radius is not None:

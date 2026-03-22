@@ -23,6 +23,7 @@ export default function Settings() {
         ai_language: data.ai_language,
         ai_quality_enabled: data.ai_quality_enabled,
         phash_threshold: data.phash_threshold,
+        custom_tag_label: data.custom_tag_label,
       })
     }
   }, [data])
@@ -123,6 +124,21 @@ export default function Settings() {
               {t('settings.quality_desc')}
             </p>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-gray-900 rounded-lg p-5 space-y-5">
+        <h2 className="text-sm font-medium text-gray-300 uppercase tracking-wider">{t('settings.custom_tag')}</h2>
+        <div className="space-y-1.5">
+          <label className="text-sm text-gray-400">{t('settings.custom_tag_name')}</label>
+          <input
+            type="text"
+            value={form.custom_tag_label ?? 'sentimental'}
+            onChange={e => setForm(f => ({ ...f, custom_tag_label: e.target.value }))}
+            placeholder="sentimental"
+            className={inputClass}
+          />
+          <p className="text-xs text-gray-500">{t('settings.custom_tag_desc')}</p>
         </div>
       </div>
 
