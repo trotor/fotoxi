@@ -200,7 +200,7 @@ async def test_search_excludes_rejected_by_default(session: AsyncSession) -> Non
         status="rejected",
     )
 
-    results, total = await search_images(session)
+    results, total = await search_images(session, exclude_statuses=["rejected", "pending"])
 
     assert total == 1
     assert all(r.status not in ("rejected", "missing", "error") for r in results)

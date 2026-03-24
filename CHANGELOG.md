@@ -2,6 +2,24 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.1] - 2026-03-24
+
+### Security
+- **Path traversal fix** in SPA route — resolved path is now checked to stay within frontend dist
+- **FTS5 query injection fix** — user search input is quoted to prevent FTS5 operator abuse
+- **pip upgraded** to 26.0.1 (fixes CVE-2025-8869, CVE-2026-1703)
+- **flatted** npm dependency upgraded (fixes prototype pollution GHSA-rf6f-7fwh-wjgh)
+
+### Updated
+- fastapi 0.135.1 → 0.135.2
+- uvicorn 0.41.0 → 0.42.0
+- anyio 4.12.1 → 4.13.0
+
+### Fixed
+- SQLite in-memory pool_size error in tests
+- Updated stale test assertions (analyzer, API duplicates, search filters)
+- 75/75 tests passing
+
 ## [0.4.0] - 2026-03-22
 
 ### Added

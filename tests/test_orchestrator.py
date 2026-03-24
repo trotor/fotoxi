@@ -192,14 +192,15 @@ async def test_indexer_state_to_dict():
     """IndexerState.to_dict() should return a dict with all expected keys."""
     state = IndexerState(running=True, phase="scanning", total=10, processed=5, errors=1, speed=2.5)
     d = state.to_dict()
-    assert d == {
-        "running": True,
-        "phase": "scanning",
-        "total": 10,
-        "processed": 5,
-        "errors": 1,
-        "speed": 2.5,
-    }
+    assert d["running"] is True
+    assert d["phase"] == "scanning"
+    assert d["total"] == 10
+    assert d["processed"] == 5
+    assert d["errors"] == 1
+    assert d["speed"] == 2.5
+    assert "ai_total" in d
+    assert "ai_processed" in d
+    assert "recent_log" in d
 
 
 @pytest.mark.asyncio

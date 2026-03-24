@@ -79,7 +79,11 @@ async def create_engine_and_init(
         Pass ``":memory:"`` for an in-memory database.
     """
     url = f"sqlite+aiosqlite:///{db_path}"
-    engine = create_async_engine(url, echo=False, pool_size=20, max_overflow=30)
+    kwargs: dict = {"echo": False}
+    if db_path != ":memory:":
+        kwargs["pool_size"] = 20
+        kwargs["max_overflow"] = 30
+    engine = create_async_engine(url, **kwargs)
 
     async with engine.begin() as conn:
         # Create all ORM-declared tables

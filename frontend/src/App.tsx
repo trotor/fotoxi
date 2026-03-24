@@ -8,7 +8,7 @@ import Indexing from './pages/Indexing'
 import Settings from './pages/Settings'
 import Stats from './pages/Stats'
 
-const CURRENT_VERSION = '0.4.0'
+const CURRENT_VERSION = '0.4.1'
 const VERSION_CHECK_URL = 'https://raw.githubusercontent.com/trotor/fotoxi/main/version.json'
 
 function useLatestVersion() {

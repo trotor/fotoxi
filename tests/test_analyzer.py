@@ -40,11 +40,11 @@ def test_parse_response_clean_json_with_quality():
         {"description": "A grey square.", "tags": ["grey", "square"], "quality_score": 0.75}
     )
     result = _parse_response(content, quality_enabled=True)
-    assert result == {
-        "description": "A grey square.",
-        "tags": ["grey", "square"],
-        "quality_score": 0.75,
-    }
+    assert result["description"] == "A grey square."
+    assert result["tags"] == ["grey", "square"]
+    assert result["quality_score"] == 0.75
+    assert "colors" in result
+    assert "scene_type" in result
 
 
 def test_parse_response_json_wrapped_in_text():

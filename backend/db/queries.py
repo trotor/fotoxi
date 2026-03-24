@@ -114,11 +114,12 @@ async def search_images(
     if folder:
         stmt = stmt.where(Image.file_path.startswith(folder))
 
-    # Full-text search via FTS5
+    # Full-text search via FTS5 (quote to prevent FTS5 operator injection)
     if q:
+        safe_q = '"' + q.replace('"', '""') + '"'
         fts_result = await session.execute(
             text("SELECT rowid FROM images_fts WHERE images_fts MATCH :q"),
-            {"q": q},
+            {"q": safe_q},
         )
         matching_ids = [row[0] for row in fts_result.fetchall()]
         stmt = stmt.where(Image.id.in_(matching_ids))

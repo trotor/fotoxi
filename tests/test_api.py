@@ -62,4 +62,6 @@ async def test_get_duplicates(client):
     response = await client.get("/api/duplicates")
     assert response.status_code == 200
     data = response.json()
-    assert isinstance(data, list)
+    assert isinstance(data, dict)
+    assert "groups" in data
+    assert isinstance(data["groups"], list)

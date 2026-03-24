@@ -83,7 +83,7 @@ async def create_app(config: Optional[Config] = None) -> FastAPI:
         on_progress=on_progress,
     )
 
-    app = FastAPI(title="Fotoxi", version="0.4.0")
+    app = FastAPI(title="Fotoxi", version="0.4.1")
 
     # Store state on the app
     app.state.config = config
@@ -152,8 +152,8 @@ async def create_app(config: Optional[Config] = None) -> FastAPI:
 
         @app.get("/{full_path:path}")
         async def serve_spa(full_path: str):
-            file_path = frontend_dist / full_path
-            if file_path.is_file():
+            file_path = (frontend_dist / full_path).resolve()
+            if file_path.is_relative_to(frontend_dist.resolve()) and file_path.is_file():
                 return StarletteFileResponse(str(file_path))
             return StarletteFileResponse(str(frontend_dist / "index.html"))
 
