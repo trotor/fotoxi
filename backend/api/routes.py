@@ -190,8 +190,9 @@ async def get_image_thumb(request: Request, image_id: int) -> FileResponse:
 
 
 @router.get("/images/{image_id}/full")
-async def get_image_full(request: Request, image_id: int) -> FileResponse:
+async def get_image_full(request: Request, image_id: int):
     from sqlalchemy import select
+    from fastapi.responses import StreamingResponse
     session_factory = request.app.state.session_factory
     async with session_factory() as session:
         result = await session.execute(select(Image).where(Image.id == image_id))
@@ -201,9 +202,33 @@ async def get_image_full(request: Request, image_id: int) -> FileResponse:
     file_path = Path(img.file_path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Image file not found on disk")
-    # Guess media type from extension for proper video playback
+
     import mimetypes
     media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
+
+    # For images with stale EXIF orientation, strip the bad orientation tag
+    if media_type.startswith("image/"):
+        try:
+            from PIL import Image as PILImage
+            pil_img = PILImage.open(file_path)
+            orientation = pil_img.getexif().get(274)
+            if orientation in (5, 6, 7, 8):
+                w, h = pil_img.size
+                is_portrait = h > w
+                if (is_portrait and orientation in (6, 8)) or (not is_portrait and orientation in (5, 7)):
+                    # Stale orientation — serve with orientation stripped
+                    import io
+                    exif = pil_img.getexif()
+                    exif[274] = 1  # Normal orientation
+                    buf = io.BytesIO()
+                    pil_img.save(buf, format=pil_img.format or "JPEG", exif=exif.tobytes())
+                    buf.seek(0)
+                    pil_img.close()
+                    return StreamingResponse(buf, media_type=media_type)
+            pil_img.close()
+        except Exception:
+            pass  # Fall through to normal FileResponse
+
     return FileResponse(str(file_path), media_type=media_type)
 
 
