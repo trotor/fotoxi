@@ -76,9 +76,10 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
   }, [onPrev, onNext, onClose, onStatusChange, image.id, image.status, isRejected])
 
   // Compact EXIF line
+  const hasRealExif = !!(image.exif_camera_model || image.exif_iso != null || image.exif_aperture != null || image.exif_focal_length != null)
   const exifParts: string[] = []
   if (image.exif_date) {
-    exifParts.push(image.exif_date.slice(0, 10))
+    exifParts.push(image.exif_date.slice(0, 10) + (hasRealExif ? '' : ' ~'))
     const time = image.exif_date.slice(11, 16)
     if (time && time !== '00:00') exifParts.push(time)
   }
@@ -278,6 +279,7 @@ function ImageCard({ image, onClick, onStatusChange, onCustomTag, customTagLabel
     ? { label: image.custom_tag, bg: 'bg-yellow-600', text: 'text-yellow-100' }
     : STATUS_BADGES[image.status]
   const isRejected = image.status === 'rejected'
+  const hasRealExif = !!(image.exif_camera_model || image.exif_iso != null || image.exif_aperture != null || image.exif_focal_length != null)
   return (
     <div
       className={`relative aspect-square bg-gray-800 rounded overflow-hidden cursor-pointer group transition-transform duration-150 hover:scale-105 hover:z-10 ${isRejected && !image.custom_tag ? 'opacity-40 hover:opacity-80' : ''}`}
@@ -311,6 +313,9 @@ function ImageCard({ image, onClick, onStatusChange, onCustomTag, customTagLabel
         )}
         {image.exif_gps_lat != null && image.exif_gps_lon != null && (
           <span className="bg-black/70 text-green-300 text-xs px-1 py-0.5 rounded">📍</span>
+        )}
+        {!hasRealExif && (
+          <span className="bg-black/70 text-gray-500 text-xs px-1 py-0.5 rounded" title="No EXIF data">~</span>
         )}
       </div>
       {/* Custom tag button on hover - left side */}
@@ -361,7 +366,7 @@ function ImageCard({ image, onClick, onStatusChange, onCustomTag, customTagLabel
       {/* Info overlay - only bottom part */}
       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
         {image.exif_date && (
-          <p className="text-gray-300 text-xs pointer-events-none">{image.exif_date.slice(0, 10)}</p>
+          <p className="text-gray-300 text-xs pointer-events-none">{image.exif_date.slice(0, 10)}{!hasRealExif && ' ~'}</p>
         )}
         {image.file_path && (
           <button
