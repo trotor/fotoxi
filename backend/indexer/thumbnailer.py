@@ -26,6 +26,31 @@ def generate_thumbnail(source: Path, thumbs_dir: Path, image_id: int) -> Optiona
         return _generate_image_thumbnail(source, thumb_path)
 
 
+def _safe_exif_transpose(img):
+    """Apply EXIF orientation, but detect already-rotated images.
+
+    Some cameras/software rotate the pixels but leave the EXIF orientation
+    tag unchanged. If the tag says rotate 90/270 but the pixel dimensions
+    already match the expected post-rotation shape, skip the transpose.
+    """
+    from PIL import ImageOps
+    orientation = img.getexif().get(274)  # 274 = Orientation tag
+    if orientation in (5, 6, 7, 8):
+        # These orientations swap width/height. If pixels are already
+        # in portrait (h > w) and orientation says "rotate to portrait",
+        # the pixels were likely already rotated.
+        w, h = img.size
+        is_portrait_pixels = h > w
+        # Orientations 5,6,7,8 would swap dimensions
+        # If pixels are portrait and tag says swap -> already correct
+        if is_portrait_pixels and orientation in (6, 8):
+            # Clear orientation to prevent double-rotation
+            return img
+        if not is_portrait_pixels and orientation in (5, 7):
+            return img
+    return ImageOps.exif_transpose(img)
+
+
 def _generate_image_thumbnail(source: Path, thumb_path: Path) -> Optional[Path]:
     try:
         from PIL import Image, ImageOps
@@ -36,7 +61,7 @@ def _generate_image_thumbnail(source: Path, thumb_path: Path) -> Optional[Path]:
             pass
 
         with Image.open(source) as img:
-            img = ImageOps.exif_transpose(img)
+            img = _safe_exif_transpose(img)
             img.thumbnail((300, 300))
             img = img.convert("RGB")
             img.save(thumb_path, format="JPEG", quality=85)
