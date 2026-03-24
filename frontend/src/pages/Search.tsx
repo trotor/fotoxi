@@ -137,9 +137,8 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
             </span>
           </div>
 
-          {/* EXIF line + nearby button */}
-          {(exifParts.length > 0 || image.exif_camera_model) && (
-            <div className="flex items-center gap-2 flex-wrap">
+          {/* EXIF line + nearby + refresh */}
+          <div className="flex items-center gap-2 flex-wrap">
               <p className="text-xs text-gray-400">
                 {exifParts.join(' · ')}
                 {image.exif_camera_model && exifParts.length > 0 && ' · '}
@@ -186,8 +185,7 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
                   : refreshStatus === 'error' ? '✕'
                   : '↻'}
               </button>
-            </div>
-          )}
+          </div>
 
           {/* AI description + tags */}
           {image.ai_description && (

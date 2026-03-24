@@ -138,6 +138,20 @@ def extract_exif(path: Path) -> Optional[dict]:
     except Exception as exc:
         logger.warning("extract_exif: error reading EXIF from %s: %s", path, exc)
 
+    # Fallback: try filename, then file mtime
+    if exif_date is None:
+        exif_date = _parse_date_from_filename(path.stem)
+    if exif_date is None:
+        try:
+            stat = path.stat()
+            candidates = [stat.st_mtime]
+            btime = getattr(stat, "st_birthtime", None)
+            if btime:
+                candidates.append(btime)
+            exif_date = datetime.fromtimestamp(min(candidates))
+        except Exception:
+            pass
+
     return {
         "width": width,
         "height": height,
