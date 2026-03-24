@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImageData } from '../api'
-import { searchImages, thumbUrl, fullUrl, updateImageStatus, refreshImageMetadata, revealImageInFinder, setImageCustomTag, getImageFolders, excludeFolder, getSettings } from '../api'
+import { searchImages, thumbUrl, fullUrl, updateImageStatus, refreshImageAll, getRefreshStatus, revealImageInFinder, setImageCustomTag, getImageFolders, excludeFolder, getSettings } from '../api'
 import FilterBar from '../components/FilterBar'
 import { useI18n } from '../i18n/useTranslation'
 
@@ -15,9 +15,9 @@ function formatBytes(b: number | null | undefined): string {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onCustomTag, customTagLabel, onFolderSelect, onCameraSelect, onTimeNear, onLocationNear, onPrev, onNext }: {
+function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTag, customTagLabel, onFolderSelect, onCameraSelect, onTimeNear, onLocationNear, onPrev, onNext }: {
   image: ImageData; onClose: () => void; onStatusChange: (id: number, status: string) => void;
-  onRefreshMetadata: (id: number) => void;
+  onRefreshDone: () => void;
   onCustomTag: (id: number) => void; customTagLabel: string;
   onFolderSelect: (folder: string) => void; onCameraSelect: (camera: string) => void;
   onTimeNear?: (date: string) => void;
@@ -25,6 +25,26 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onCust
   onPrev?: () => void; onNext?: () => void;
 }) {
   const { t } = useI18n()
+  const [refreshStatus, setRefreshStatus] = useState<string | null>(null)
+
+  // Poll refresh status
+  useEffect(() => {
+    if (!refreshStatus || refreshStatus === 'done' || refreshStatus === 'error') return
+    const interval = setInterval(async () => {
+      const status = await getRefreshStatus(image.id)
+      setRefreshStatus(status)
+      if (status === 'done' || status === 'error') {
+        onRefreshDone()
+      }
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [refreshStatus, image.id, onRefreshDone])
+
+  const handleRefresh = async () => {
+    setRefreshStatus('starting')
+    await refreshImageAll(image.id)
+    setRefreshStatus('metadata')
+  }
   const isRejected = image.status === 'rejected'
   const VIDEO_FORMATS = ['MP4','MOV','AVI','MKV','WMV','FLV','WEBM','M4V','MPG','MPEG','3GP','MTS']
   const isVideo = image.format ? VIDEO_FORMATS.includes(image.format.toUpperCase()) : false
@@ -149,11 +169,22 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshMetadata, onCust
                 </button>
               )}
               <button
-                onClick={() => onRefreshMetadata(image.id)}
-                className="text-xs text-gray-500 hover:text-gray-300 flex-shrink-0 ml-auto"
+                onClick={handleRefresh}
+                disabled={!!refreshStatus && refreshStatus !== 'done' && refreshStatus !== 'error'}
+                className={`text-xs flex-shrink-0 ml-auto px-1.5 py-0.5 rounded transition-colors ${
+                  refreshStatus && refreshStatus !== 'done' && refreshStatus !== 'error'
+                    ? 'text-yellow-400 animate-pulse cursor-wait'
+                    : refreshStatus === 'done' ? 'text-green-400'
+                    : refreshStatus === 'error' ? 'text-red-400'
+                    : 'text-gray-500 hover:text-gray-300'
+                }`}
                 title={t('help.refresh_metadata')}
               >
-                ↻
+                {refreshStatus && refreshStatus !== 'done' && refreshStatus !== 'error'
+                  ? `↻ ${refreshStatus}...`
+                  : refreshStatus === 'done' ? '✓'
+                  : refreshStatus === 'error' ? '✕'
+                  : '↻'}
               </button>
             </div>
           )}
@@ -903,8 +934,7 @@ export default function Search() {
           image={selectedImage}
           onClose={() => setSelectedImage(null)}
           onStatusChange={handleStatusChange}
-          onRefreshMetadata={async (id) => {
-            await refreshImageMetadata(id)
+          onRefreshDone={() => {
             queryClient.invalidateQueries({ queryKey: ['search'] })
           }}
           onCustomTag={handleCustomTag}

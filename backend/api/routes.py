@@ -484,6 +484,111 @@ async def refresh_image_metadata(request: Request, image_id: int) -> Dict[str, A
     return {"id": image_id, "refreshed": True}
 
 
+# In-progress single-image refresh tasks
+_refresh_tasks: Dict[int, str] = {}  # image_id -> status ("metadata"|"thumbnail"|"ai"|"done"|"error")
+
+
+@router.post("/images/{image_id}/refresh-all")
+async def refresh_image_all(request: Request, image_id: int) -> Dict[str, Any]:
+    """Full refresh: metadata + thumbnail + AI analysis. AI runs in background."""
+    from sqlalchemy import select as sa_select
+    from backend.indexer.exif import extract_exif
+    from backend.indexer.thumbnailer import generate_thumbnail
+    from backend.indexer.analyzer import analyze_image
+    import datetime
+
+    session_factory = request.app.state.session_factory
+    config = request.app.state.config
+
+    # Get image
+    async with session_factory() as session:
+        result = await session.execute(sa_select(Image).where(Image.id == image_id))
+        img = result.scalar_one_or_none()
+        if img is None:
+            raise HTTPException(status_code=404, detail="Image not found")
+        file_path = img.file_path
+        file_name = img.file_name
+
+    loop = asyncio.get_event_loop()
+    _refresh_tasks[image_id] = "metadata"
+
+    async def _do_refresh():
+        try:
+            # 1. Metadata
+            _refresh_tasks[image_id] = "metadata"
+            exif_data = await loop.run_in_executor(None, extract_exif, Path(file_path))
+            if exif_data:
+                async with session_factory() as session:
+                    result = await session.execute(sa_select(Image).where(Image.id == image_id))
+                    img = result.scalar_one_or_none()
+                    if img:
+                        for key, value in exif_data.items():
+                            if hasattr(img, key):
+                                setattr(img, key, value)
+                        img.updated_at = datetime.datetime.utcnow()
+                        await session.commit()
+
+            # 2. Thumbnail
+            _refresh_tasks[image_id] = "thumbnail"
+            await loop.run_in_executor(
+                None, generate_thumbnail, Path(file_path), Path(config.thumbs_dir), image_id
+            )
+
+            # 3. AI analysis
+            _refresh_tasks[image_id] = "ai"
+            thumb_path = Path(config.thumbs_dir) / f"{image_id}.jpg"
+            ai_result = await loop.run_in_executor(
+                None,
+                lambda: analyze_image(
+                    path=file_path,
+                    ollama_url=config.ollama_url,
+                    model=config.ollama_model,
+                    language=config.ai_language,
+                    quality_enabled=config.ai_quality_enabled,
+                    thumb_path=thumb_path,
+                ),
+            )
+            if ai_result:
+                async with session_factory() as session:
+                    result = await session.execute(sa_select(Image).where(Image.id == image_id))
+                    img = result.scalar_one_or_none()
+                    if img:
+                        import json as _json
+                        desc = ai_result.get("description", "")
+                        tags = ai_result.get("tags", [])
+                        tags_json = _json.dumps(tags) if tags else None
+                        lang = config.ai_language
+                        img.ai_description = desc
+                        img.ai_tags = tags_json
+                        if lang in ("english", "en"):
+                            img.ai_description_en = desc
+                            img.ai_tags_en = tags_json
+                        elif lang in ("finnish", "fi"):
+                            img.ai_description_fi = desc
+                            img.ai_tags_fi = tags_json
+                        img.ai_quality_score = ai_result.get("quality_score")
+                        img.ai_model = config.ollama_model
+                        img.indexed_at = datetime.datetime.utcnow()
+                        img.updated_at = datetime.datetime.utcnow()
+                        await session.commit()
+
+            _refresh_tasks[image_id] = "done"
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("refresh-all error for %s: %s", file_name, exc)
+            _refresh_tasks[image_id] = "error"
+
+    asyncio.create_task(_do_refresh())
+    return {"id": image_id, "status": "started"}
+
+
+@router.get("/images/{image_id}/refresh-status")
+async def refresh_image_status(request: Request, image_id: int) -> Dict[str, Any]:
+    """Check the progress of a single-image refresh-all operation."""
+    status = _refresh_tasks.get(image_id)
+    return {"id": image_id, "refresh_status": status}
+
+
 # ---------------------------------------------------------------------------
 # Duplicates
 # ---------------------------------------------------------------------------

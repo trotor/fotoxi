@@ -184,6 +184,18 @@ export async function refreshImageMetadata(id: number): Promise<void> {
   if (!res.ok) throw new Error(`Metadata refresh failed: ${res.status}`)
 }
 
+export async function refreshImageAll(id: number): Promise<void> {
+  const res = await fetch(`${BASE}/images/${id}/refresh-all`, { method: 'POST' })
+  if (!res.ok) throw new Error(`Full refresh failed: ${res.status}`)
+}
+
+export async function getRefreshStatus(id: number): Promise<string | null> {
+  const res = await fetch(`${BASE}/images/${id}/refresh-status`)
+  if (!res.ok) return null
+  const data = await res.json()
+  return data.refresh_status
+}
+
 export function fullUrl(id: number): string {
   return `${BASE}/images/${id}/full`
 }
