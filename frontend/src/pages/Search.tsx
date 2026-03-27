@@ -564,6 +564,30 @@ export default function Search() {
     })
   }, [])
 
+  const defaultExclude = new Set(['rejected', 'pending'])
+  const hasActiveFilters = !!(
+    submittedQuery || dateFrom || dateTo || camera || minQuality ||
+    mediaType !== 'all' || folderFilter || timeNear || locationNear ||
+    hasAiFilter || showTagged ||
+    excludeStatuses.size !== defaultExclude.size ||
+    [...excludeStatuses].some(s => !defaultExclude.has(s))
+  )
+
+  const clearAllFilters = useCallback(() => {
+    setQuery(''); setSubmittedQuery('')
+    setDateFrom(''); setDateTo(''); setCamera(''); setMinQuality('')
+    setMediaType('all')
+    setExcludeStatuses(new Set(['rejected', 'pending']))
+    setFolderFilter(''); setTimeNear(''); setTimeRange(300)
+    setLocationNear(null); setLocationRadius(1)
+    setHasAiFilter(false); setShowTagged(false)
+    setSortBy('exif_date'); setSortOrder('desc')
+    setActiveFilters({
+      dateFrom: '', dateTo: '', camera: '', minQuality: '',
+      status: '', exclude: 'rejected,pending', folder: '', media: 'all', timeNear: '',
+    })
+  }, [])
+
   const queryClient = useQueryClient()
   const allImages = data?.pages.flatMap(p => p.images) ?? []
   const total = data?.pages[0]?.total ?? 0
@@ -704,6 +728,17 @@ export default function Search() {
         >
           ★ {customTagLabel}
         </button>
+        {hasActiveFilters && (
+          <>
+            <span className="text-gray-700 mx-1">|</span>
+            <button
+              onClick={clearAllFilters}
+              className="text-xs px-3 py-1 rounded transition-colors bg-red-900/50 text-red-300 hover:bg-red-800/60 border border-red-800/50"
+            >
+              ✕ {t('search.clear')}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Time proximity filter with adjustable range */}

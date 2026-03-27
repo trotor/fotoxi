@@ -58,6 +58,7 @@
   "idx.start_scan": "Skannaa & kasittele",
   "idx.process_missing": "Kasittele puuttuvat",
   "idx.stop": "Pysayta",
+  "idx.stopping": "Pysaytetaan...",
   "idx.phase.idle": "Odottaa",
   "idx.phase.starting": "Kaynnistyy...",
   "idx.phase.scanning": "Skannaus",

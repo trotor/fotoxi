@@ -95,14 +95,17 @@ export default function Indexing() {
     }
   }, [])
 
+  const [stopping, setStopping] = useState(false)
+
   async function handleStartStop() {
     if (status.running) {
+      setStopping(true)
       await stopIndexer()
       // Poll until it actually stops
       const poll = setInterval(async () => {
         const s = await getIndexerStatus()
         setStatus(s)
-        if (!s.running) clearInterval(poll)
+        if (!s.running) { clearInterval(poll); setStopping(false) }
       }, 500)
     } else {
       await startIndexer()
@@ -158,13 +161,16 @@ export default function Indexing() {
             )}
             <button
               onClick={handleStartStop}
+              disabled={stopping}
               className={`px-5 py-2 rounded text-sm font-medium transition-colors ${
-                status.running
-                  ? 'bg-red-800 hover:bg-red-700 text-white'
-                  : 'bg-green-700 hover:bg-green-600 text-white'
+                stopping
+                  ? 'bg-yellow-800 text-yellow-200 cursor-wait animate-pulse'
+                  : status.running
+                    ? 'bg-red-800 hover:bg-red-700 text-white'
+                    : 'bg-green-700 hover:bg-green-600 text-white'
               }`}
             >
-              {status.running ? t('idx.stop') : t('idx.start_scan')}
+              {stopping ? t('idx.stopping') : status.running ? t('idx.stop') : t('idx.start_scan')}
             </button>
           </div>
         </div>

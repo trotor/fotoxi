@@ -58,6 +58,7 @@
   "idx.start_scan": "Scan & process",
   "idx.process_missing": "Process missing",
   "idx.stop": "Stop",
+  "idx.stopping": "Stopping...",
   "idx.phase.idle": "Idle",
   "idx.phase.starting": "Starting...",
   "idx.phase.scanning": "Scanning",
