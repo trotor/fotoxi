@@ -150,9 +150,9 @@ async def search_images(
     if sort_col is None:
         sort_col = Image.created_at
     if order == "asc":
-        stmt = stmt.order_by(sort_col.asc())
+        stmt = stmt.order_by(sort_col.asc(), Image.id.asc())
     else:
-        stmt = stmt.order_by(sort_col.desc())
+        stmt = stmt.order_by(sort_col.desc(), Image.id.desc())
 
     # Pagination
     offset = (page - 1) * limit
