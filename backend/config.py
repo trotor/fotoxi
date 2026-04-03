@@ -27,7 +27,7 @@ class Config:
     ollama_concurrency: int = 1
     ui_language: str = "fi"
     server_host: str = "127.0.0.1"
-    server_port: int = 8000
+    server_port: int = 8001
     ai_thumb_size: int = 512
     custom_tag_label: str = "sentimental"
     auto_process_on_start: bool = False

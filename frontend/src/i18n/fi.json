@@ -41,7 +41,7 @@
   "search.tag_hide": "Klikkaa piilottaaksesi henkilökohtaiset kuvat",
   "search.tag_include_label": "+ omat",
   "search.tag_only_label": "vain omat",
-  "search.keyboard_hints": "Enter = sailyta · Backspace = havita · Nuolet = edellinen/seuraava · Esc = sulje",
+  "search.keyboard_hints": "Enter = säilytä · Backspace = hävitä · S = ★ tagi · U = peru säilytys · ← → = edellinen/seuraava · Esc = sulje · Shift = pysy",
   "dup.group": "Ryhma",
   "dup.images": "kuvaa",
   "dup.keep_recommended": "Sailyta suositeltu",

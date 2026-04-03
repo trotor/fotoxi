@@ -15,7 +15,7 @@ source .venv/bin/activate            # Activate
 ```bash
 # Backend (venv must be active)
 pip install -e ".[dev]"              # Install with dev deps
-python fotoxi.py serve               # Start server at http://localhost:8000
+python fotoxi.py serve               # Start server at http://localhost:8001
 python fotoxi.py serve -p 3000       # Custom port
 python -m pytest -v tests/           # Run all tests
 python -m pytest tests/test_api.py   # Run single test file

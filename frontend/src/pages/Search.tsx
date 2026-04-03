@@ -52,28 +52,36 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
   // Keyboard navigation + quick actions
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const advance = !e.shiftKey
       if (e.key === 'ArrowLeft' && onPrev) onPrev()
       else if (e.key === 'ArrowRight' && onNext) onNext()
       else if (e.key === 'Escape') onClose()
       else if (e.key === 'Enter') {
-        // Keep + next (not for already kept)
         if (!isRejected && image.status !== 'kept') {
           onStatusChange(image.id, 'kept')
-          if (onNext) onNext()
+          if (advance && onNext) onNext()
         }
       }
       else if (e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault()
-        // Reject + next (not for kept - must un-keep first)
-        if (image.status === 'kept') return // protected
+        if (image.status === 'kept') return
         if (!isRejected) onStatusChange(image.id, 'rejected')
         else onStatusChange(image.id, 'indexed')
-        if (onNext) onNext()
+        if (advance && onNext) onNext()
+      }
+      else if (e.key === 's') {
+        onCustomTag(image.id)
+        if (advance && onNext) onNext()
+      }
+      else if (e.key === 'u') {
+        if (image.status === 'kept') {
+          onStatusChange(image.id, 'indexed')
+        }
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [onPrev, onNext, onClose, onStatusChange, image.id, image.status, isRejected])
+  }, [onPrev, onNext, onClose, onStatusChange, onCustomTag, image.id, image.status, isRejected])
 
   // Compact EXIF line
   const hasRealExif = !!(image.exif_camera_model || image.exif_iso != null || image.exif_aperture != null || image.exif_focal_length != null)
@@ -223,7 +231,7 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
               {!image.custom_tag && image.status !== 'kept' && !isRejected && (
                 <button onClick={() => { onCustomTag(image.id); onNext?.() }}
                   className="bg-yellow-700 hover:bg-yellow-600 text-yellow-100 text-xs px-3 py-1 rounded"
-                  title={customTagLabel}>
+                  title={`${customTagLabel} (S)`}>
                   ★
                 </button>
               )}
@@ -257,7 +265,7 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
             </div>
           </div>
           {/* Keyboard shortcuts hint */}
-          <p className="text-xs text-gray-700 text-center pt-1">
+          <p className="text-xs text-gray-500 text-center pt-1">
             {t('search.keyboard_hints')}
           </p>
         </div>

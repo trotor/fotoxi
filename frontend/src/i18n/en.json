@@ -41,7 +41,7 @@
   "search.tag_hide": "Click to hide personal photos",
   "search.tag_include_label": "+ personal",
   "search.tag_only_label": "only personal",
-  "search.keyboard_hints": "Enter = keep · Backspace = reject · Arrows = prev/next · Esc = close",
+  "search.keyboard_hints": "Enter = keep · Backspace = reject · S = ★ tag · U = undo keep · ← → = prev/next · Esc = close · Shift = stay",
   "dup.group": "Group",
   "dup.images": "images",
   "dup.keep_recommended": "Keep recommended",

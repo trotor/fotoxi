@@ -23,7 +23,7 @@ async def cmd_serve(args: argparse.Namespace) -> None:
     from backend.main import create_app
 
     app = await create_app()
-    port = args.port or 8000
+    port = args.port or 8001
     print(f"Starting Fotoxi at http://localhost:{port}")
     config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
     server = uvicorn.Server(config)
@@ -535,7 +535,7 @@ def main():
 
     # serve
     serve_p = subparsers.add_parser("serve", help="Start web UI server")
-    serve_p.add_argument("-p", "--port", type=int, default=8000, help="Port (default 8000)")
+    serve_p.add_argument("-p", "--port", type=int, default=8001, help="Port (default 8001)")
 
     # add
     add_p = subparsers.add_parser("add", help="Add a source folder")
@@ -579,7 +579,7 @@ def main():
 
     if args.command is None:
         # Default: serve
-        args.port = 8000
+        args.port = 8001
         asyncio.run(cmd_serve(args))
     elif args.command == "serve":
         asyncio.run(cmd_serve(args))
