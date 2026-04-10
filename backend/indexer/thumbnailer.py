@@ -11,7 +11,7 @@ def is_video(path: Path) -> bool:
     return path.suffix.lower() in VIDEO_EXTENSIONS
 
 
-def generate_thumbnail(source: Path, thumbs_dir: Path, image_id: int) -> Optional[Path]:
+def generate_thumbnail(source: Path, thumbs_dir: Path, image_id: int, rotation: int = 0) -> Optional[Path]:
     """Generate a 300px (longest side) JPEG thumbnail for an image or video.
 
     For videos, extracts a frame ~1 second in using OpenCV.
@@ -23,7 +23,7 @@ def generate_thumbnail(source: Path, thumbs_dir: Path, image_id: int) -> Optiona
     if is_video(source):
         return _generate_video_thumbnail(source, thumb_path)
     else:
-        return _generate_image_thumbnail(source, thumb_path)
+        return _generate_image_thumbnail(source, thumb_path, rotation=rotation)
 
 
 def _safe_exif_transpose(img):
@@ -51,7 +51,7 @@ def _safe_exif_transpose(img):
     return ImageOps.exif_transpose(img)
 
 
-def _generate_image_thumbnail(source: Path, thumb_path: Path) -> Optional[Path]:
+def _generate_image_thumbnail(source: Path, thumb_path: Path, rotation: int = 0) -> Optional[Path]:
     try:
         from PIL import Image, ImageOps
         try:
@@ -62,6 +62,8 @@ def _generate_image_thumbnail(source: Path, thumb_path: Path) -> Optional[Path]:
 
         with Image.open(source) as img:
             img = _safe_exif_transpose(img)
+            if rotation:
+                img = img.rotate(-rotation, expand=True)
             img.thumbnail((300, 300))
             img = img.convert("RGB")
             img.save(thumb_path, format="JPEG", quality=85)

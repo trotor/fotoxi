@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImageData } from '../api'
-import { searchImages, thumbUrl, fullUrl, updateImageStatus, refreshImageAll, getRefreshStatus, revealImageInFinder, setImageCustomTag, getImageFolders, excludeFolder, getSettings } from '../api'
+import { searchImages, thumbUrl, fullUrl, updateImageStatus, refreshImageAll, getRefreshStatus, revealImageInFinder, setImageCustomTag, rotateImage, bulkRejectMissing, getImageFolders, excludeFolder, getSettings } from '../api'
 import FilterBar from '../components/FilterBar'
 import { useI18n } from '../i18n/useTranslation'
 
@@ -15,14 +15,15 @@ function formatBytes(b: number | null | undefined): string {
   return `${(b / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTag, customTagLabel, onFolderSelect, onCameraSelect, onTimeNear, onLocationNear, onPrev, onNext }: {
+function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTag, onRotate, customTagLabel, onFolderSelect, onCameraSelect, onTimeNear, onLocationNear, onPrev, onNext, prevImage, nextImage }: {
   image: ImageData; onClose: () => void; onStatusChange: (id: number, status: string) => void;
   onRefreshDone: () => void;
-  onCustomTag: (id: number) => void; customTagLabel: string;
+  onCustomTag: (id: number) => void; onRotate: (id: number) => void; customTagLabel: string;
   onFolderSelect: (folder: string) => void; onCameraSelect: (camera: string) => void;
   onTimeNear?: (date: string) => void;
   onLocationNear?: (lat: number, lon: number) => void;
   onPrev?: () => void; onNext?: () => void;
+  prevImage?: ImageData | null; nextImage?: ImageData | null;
 }) {
   const { t } = useI18n()
   const [refreshStatus, setRefreshStatus] = useState<string | null>(null)
@@ -70,6 +71,10 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
         if (advance && onNext) onNext()
       }
       else if (e.key === 's') {
+        if (image.status === 'kept') {
+          if (onNext) onNext()
+          return
+        }
         onCustomTag(image.id)
         if (advance && onNext) onNext()
       }
@@ -101,40 +106,44 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
 
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center" onClick={onClose}>
-      {/* Prev arrow */}
-      {onPrev && (
-        <button onClick={(e) => { e.stopPropagation(); onPrev() }}
-          className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white w-10 h-16 rounded flex items-center justify-center text-xl z-10">
-          ◀
-        </button>
-      )}
-      {/* Next arrow */}
-      {onNext && (
-        <button onClick={(e) => { e.stopPropagation(); onNext() }}
-          className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 text-white w-10 h-16 rounded flex items-center justify-center text-xl z-10">
-          ▶
-        </button>
-      )}
-
-      <div className="bg-gray-900 rounded-lg max-w-4xl w-full mx-12 max-h-[95vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        {/* Image or Video */}
-        <div className="relative flex-shrink-0 bg-black rounded-t-lg">
-          {isVideo ? (
-            <video
-              src={fullUrl(image.id)}
-              poster={thumbUrl(image.id)}
-              controls
-              className="w-full max-h-[60vh] object-contain"
-            />
-          ) : (
-            <img src={fullUrl(image.id)} alt={image.file_name}
-              className="w-full max-h-[60vh] object-contain" />
-          )}
-          <button onClick={onClose}
-            className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/80">
-            ✕
+      <div className="flex items-center gap-2 max-w-[95vw] max-h-[95vh]" onClick={e => e.stopPropagation()}>
+        {/* Previous image thumbnail */}
+        {prevImage && onPrev ? (
+          <button onClick={onPrev}
+            className="hidden lg:block flex-shrink-0 w-48 h-72 rounded-lg overflow-hidden opacity-50 hover:opacity-80 transition-opacity bg-gray-800">
+            <img src={thumbUrl(prevImage.id)} alt="" className="w-full h-full object-cover" />
           </button>
-        </div>
+        ) : (
+          <div className="hidden lg:block w-48 flex-shrink-0" />
+        )}
+
+        {/* Main content */}
+        <div className="bg-gray-900 rounded-lg max-w-4xl w-full max-h-[95vh] flex flex-col">
+          {/* Image or Video */}
+          <div className="relative flex-shrink-0 bg-black rounded-t-lg">
+            {isVideo ? (
+              <video
+                src={fullUrl(image.id)}
+                poster={thumbUrl(image.id)}
+                controls
+                className="w-full max-h-[60vh] object-contain"
+              />
+            ) : (
+              <img src={`${fullUrl(image.id)}?r=${image.rotation || 0}`} alt={image.file_name}
+                className="w-full max-h-[60vh] object-contain" />
+            )}
+            {!isVideo && (
+              <button onClick={() => onRotate(image.id)}
+                className="absolute top-2 left-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/80 text-lg"
+                title={t('search.rotate')}>
+                ↻
+              </button>
+            )}
+            <button onClick={onClose}
+              className="absolute top-2 right-2 bg-black/60 text-white rounded-full w-8 h-8 flex items-center justify-center hover:bg-black/80">
+              ✕
+            </button>
+          </div>
 
         {/* Info bar - compact */}
         <div className="p-3 space-y-2 overflow-y-auto">
@@ -270,6 +279,17 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
           </p>
         </div>
       </div>
+
+        {/* Next image thumbnail */}
+        {nextImage && onNext ? (
+          <button onClick={onNext}
+            className="hidden lg:block flex-shrink-0 w-48 h-72 rounded-lg overflow-hidden opacity-50 hover:opacity-80 transition-opacity bg-gray-800">
+            <img src={thumbUrl(nextImage.id)} alt="" className="w-full h-full object-cover" />
+          </button>
+        ) : (
+          <div className="hidden lg:block w-48 flex-shrink-0" />
+        )}
+      </div>
     </div>
   )
 }
@@ -401,9 +421,9 @@ export default function Search() {
   const [camera, setCamera] = useState('')
   const [minQuality, setMinQuality] = useState('')
   const [mediaType, setMediaType] = useState<'all' | 'photo' | 'video'>('all')
-  const [sortBy, setSortBy] = useState('exif_date')
-  const [sortOrder, setSortOrder] = useState('desc')
-  const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(new Set(['rejected', 'pending']))
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem('fotoxi_sortBy') || 'exif_date')
+  const [sortOrder, setSortOrder] = useState(() => localStorage.getItem('fotoxi_sortOrder') || 'desc')
+  const [excludeStatuses, setExcludeStatuses] = useState<Set<string>>(new Set(['rejected', 'pending', 'missing']))
   const [folderFilter, setFolderFilter] = useState('')
   const [timeNear, setTimeNear] = useState('')
   const [timeRange, setTimeRange] = useState(300)
@@ -427,6 +447,7 @@ export default function Search() {
     timeNear: '',
   })
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null)
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1)
 
   // Sync URL params -> filters (when navigating from Stats etc.)
   useEffect(() => {
@@ -441,6 +462,9 @@ export default function Search() {
       setActiveFilters(prev => ({ ...prev, dateFrom: df, dateTo: dt, camera: cam, status: st, exclude: excl }))
     }
   }, [searchParams])
+  useEffect(() => { localStorage.setItem('fotoxi_sortBy', sortBy) }, [sortBy])
+  useEffect(() => { localStorage.setItem('fotoxi_sortOrder', sortOrder) }, [sortOrder])
+
   const [showScrollTop, setShowScrollTop] = useState(false)
   const loadMoreRef = useRef<HTMLDivElement>(null)
 
@@ -467,7 +491,7 @@ export default function Search() {
         time_near: activeFilters.timeNear || undefined,
         time_range: activeFilters.timeNear ? timeRange : undefined,
         has_ai: hasAiFilter || undefined,
-        include_tagged: showTagged || undefined,
+        only_tagged: showTagged || undefined,
         lat: locationNear?.lat,
         lon: locationNear?.lon,
         radius: locationNear ? locationRadius : undefined,
@@ -572,7 +596,7 @@ export default function Search() {
     })
   }, [])
 
-  const defaultExclude = new Set(['rejected', 'pending'])
+  const defaultExclude = new Set(['rejected', 'pending', 'missing'])
   const hasActiveFilters = !!(
     submittedQuery || dateFrom || dateTo || camera || minQuality ||
     mediaType !== 'all' || folderFilter || timeNear || locationNear ||
@@ -589,7 +613,6 @@ export default function Search() {
     setFolderFilter(''); setTimeNear(''); setTimeRange(300)
     setLocationNear(null); setLocationRadius(1)
     setHasAiFilter(false); setShowTagged(false)
-    setSortBy('exif_date'); setSortOrder('desc')
     setActiveFilters({
       dateFrom: '', dateTo: '', camera: '', minQuality: '',
       status: '', exclude: 'rejected,pending', folder: '', media: 'all', timeNear: '',
@@ -611,6 +634,76 @@ export default function Search() {
     queryClient.invalidateQueries({ queryKey: ['search'] })
     setSelectedImage(prev => prev && prev.id === imageId ? { ...prev, custom_tag: customTagLabel } : prev)
   }, [customTagLabel, queryClient])
+
+  const handleRotate = useCallback(async (imageId: number) => {
+    const result = await rotateImage(imageId)
+    queryClient.invalidateQueries({ queryKey: ['search'] })
+    setSelectedImage(prev => prev && prev.id === imageId ? { ...prev, rotation: result.rotation } : prev)
+  }, [queryClient])
+
+  // Grid keyboard navigation + actions (when modal is NOT open)
+  useEffect(() => {
+    if (selectedImage) return // modal handles its own keys
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+
+      const len = allImages.length
+      if (!len) return
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        setFocusedIndex(prev => Math.min(prev + 1, len - 1))
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        setFocusedIndex(prev => Math.max(prev - 1, 0))
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        // Move down one row (estimate cols from grid)
+        const cols = Math.floor(window.innerWidth / 200) || 5
+        setFocusedIndex(prev => Math.min(prev + cols, len - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        const cols = Math.floor(window.innerWidth / 200) || 5
+        setFocusedIndex(prev => Math.max(prev - cols, 0))
+      } else if (focusedIndex >= 0 && focusedIndex < len) {
+        const img = allImages[focusedIndex]
+        const advance = !e.shiftKey
+        if (e.key === 'Enter' && !e.shiftKey && img.status !== 'kept' && img.status !== 'rejected') {
+          // Open preview on plain Enter if image is normal
+          setSelectedImage(img)
+        } else if (e.key === 'Enter' && e.shiftKey) {
+          // Shift+Enter = keep
+          if (img.status !== 'kept' && img.status !== 'rejected') {
+            handleStatusChange(img.id, 'kept')
+            if (advance) setFocusedIndex(prev => Math.min(prev + 1, len - 1))
+          }
+        } else if (e.key === 'Backspace' || e.key === 'Delete') {
+          e.preventDefault()
+          if (img.status === 'kept') return
+          if (img.status !== 'rejected') handleStatusChange(img.id, 'rejected')
+          else handleStatusChange(img.id, 'indexed')
+        } else if (e.key === 's') {
+          if (img.status === 'kept') {
+            setFocusedIndex(prev => Math.min(prev + 1, len - 1))
+            return
+          }
+          handleCustomTag(img.id)
+        } else if (e.key === 'u') {
+          if (img.status === 'kept') handleStatusChange(img.id, 'indexed')
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [selectedImage, allImages, focusedIndex, handleStatusChange, handleCustomTag])
+
+  // Scroll focused card into view
+  useEffect(() => {
+    if (focusedIndex < 0) return
+    const el = document.querySelector(`[data-grid-index="${focusedIndex}"]`)
+    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [focusedIndex])
 
   return (
     <div>
@@ -679,6 +772,7 @@ export default function Search() {
           { key: 'file_size', label: t('search.size') },
           { key: 'phash', label: t('search.similarity') },
           { key: 'created_at', label: t('search.added') },
+          { key: 'status_changed_at', label: t('search.status_changed') },
           { key: 'updated_at', label: t('search.updated') },
         ].map(s => (
           <button
@@ -710,6 +804,7 @@ export default function Search() {
           { key: 'kept', label: t('search.kept'), activeColor: 'bg-green-700 text-white' },
           { key: 'rejected', label: t('search.rejected'), activeColor: 'bg-red-800 text-red-100' },
           { key: 'pending', label: t('search.pending'), activeColor: 'bg-yellow-700 text-yellow-100' },
+          { key: 'missing', label: t('search.missing'), activeColor: 'bg-purple-800 text-purple-100' },
         ].map(f => {
           const isVisible = !excludeStatuses.has(f.key)
           return (
@@ -726,6 +821,19 @@ export default function Search() {
             </button>
           )
         })}
+        {!excludeStatuses.has('missing') && (
+          <button
+            onClick={async () => {
+              if (!confirm(t('search.bulk_reject_missing_confirm'))) return
+              const result = await bulkRejectMissing()
+              queryClient.invalidateQueries({ queryKey: ['search'] })
+              alert(t('search.bulk_reject_missing_done').replace('{count}', String(result.rejected_count)))
+            }}
+            className="text-xs px-3 py-1 rounded transition-colors bg-red-900/60 text-red-300 hover:bg-red-800/70 border border-red-800/50"
+          >
+            {t('search.bulk_reject_missing')}
+          </button>
+        )}
         <span className="text-gray-700 mx-1">|</span>
         <button
           onClick={() => setShowTagged(prev => !prev)}
@@ -941,8 +1049,10 @@ export default function Search() {
       {allImages.length > 0 && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 mt-4">
-            {allImages.map(img => (
-              <ImageCard key={img.id} image={img} onClick={() => setSelectedImage(img)} onStatusChange={handleStatusChange} onCustomTag={handleCustomTag} customTagLabel={customTagLabel} onFolderSelect={handleFolderSelect} />
+            {allImages.map((img, idx) => (
+              <div key={img.id} data-grid-index={idx} className={`rounded ${idx === focusedIndex ? 'ring-2 ring-blue-400' : ''}`}>
+                <ImageCard image={img} onClick={() => { setSelectedImage(img); setFocusedIndex(idx) }} onStatusChange={handleStatusChange} onCustomTag={handleCustomTag} customTagLabel={customTagLabel} onFolderSelect={handleFolderSelect} />
+              </div>
             ))}
           </div>
 
@@ -984,11 +1094,14 @@ export default function Search() {
             queryClient.invalidateQueries({ queryKey: ['search'] })
           }}
           onCustomTag={handleCustomTag}
+          onRotate={handleRotate}
           customTagLabel={customTagLabel}
           onFolderSelect={handleFolderSelect}
           onCameraSelect={handleCameraSelect}
           onTimeNear={handleTimeNear}
           onLocationNear={handleLocationNear}
+          prevImage={(() => { const idx = allImages.findIndex(i => i.id === selectedImage.id); return idx > 0 ? allImages[idx - 1] : null })()}
+          nextImage={(() => { const idx = allImages.findIndex(i => i.id === selectedImage.id); return idx < allImages.length - 1 ? allImages[idx + 1] : null })()}
           onPrev={() => {
             const idx = allImages.findIndex(i => i.id === selectedImage.id)
             if (idx > 0) setSelectedImage(allImages[idx - 1])

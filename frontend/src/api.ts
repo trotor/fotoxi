@@ -24,6 +24,7 @@ export interface ImageData {
   ai_model: string | null
   status: string
   custom_tag: string | null
+  rotation: number
   source_type: string
   indexed_at: string | null
 }
@@ -110,7 +111,7 @@ export async function searchImages(params: {
   time_range?: number
   has_ai?: boolean
   custom_tag?: string
-  include_tagged?: boolean
+  only_tagged?: boolean
   lat?: number
   lon?: number
   radius?: number
@@ -133,7 +134,7 @@ export async function searchImages(params: {
   if (params.time_range) query.set('time_range', String(params.time_range))
   if (params.has_ai) query.set('has_ai', 'true')
   if (params.custom_tag) query.set('custom_tag', params.custom_tag)
-  if (params.include_tagged) query.set('include_tagged', 'true')
+  if (params.only_tagged) query.set('only_tagged', 'true')
   if (params.lat != null) query.set('lat', String(params.lat))
   if (params.lon != null) query.set('lon', String(params.lon))
   if (params.radius != null) query.set('radius', String(params.radius))
@@ -172,6 +173,18 @@ export async function setImageCustomTag(id: number, custom_tag: string | null): 
     body: JSON.stringify({ custom_tag }),
   })
   if (!res.ok) throw new Error(`Tag update failed: ${res.status}`)
+}
+
+export async function rotateImage(id: number): Promise<{ id: number; rotation: number }> {
+  const res = await fetch(`${BASE}/images/${id}/rotate`, { method: 'PATCH' })
+  if (!res.ok) throw new Error(`Rotate failed: ${res.status}`)
+  return res.json()
+}
+
+export async function bulkRejectMissing(): Promise<{ rejected_count: number }> {
+  const res = await fetch(`${BASE}/images/bulk-reject-missing`, { method: 'POST' })
+  if (!res.ok) throw new Error(`Bulk reject failed: ${res.status}`)
+  return res.json()
 }
 
 export async function revealImageInFinder(id: number): Promise<void> {

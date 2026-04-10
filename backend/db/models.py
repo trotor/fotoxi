@@ -66,10 +66,14 @@ class Image(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False, default="pending")
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     custom_tag: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    rotation: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     # Timestamps
     indexed_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     status_changed_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    rejected_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    kept_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    tagged_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, nullable=False, default=func.now()
     )

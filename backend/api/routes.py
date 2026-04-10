@@ -57,9 +57,13 @@ def _image_to_dict(img: Image) -> Dict[str, Any]:
         "ai_model": img.ai_model,
         "status": img.status,
         "custom_tag": img.custom_tag,
+        "rotation": img.rotation,
         "error_message": img.error_message,
         "indexed_at": img.indexed_at.isoformat() if img.indexed_at is not None else None,
         "status_changed_at": img.status_changed_at.isoformat() if img.status_changed_at is not None else None,
+        "rejected_at": img.rejected_at.isoformat() if img.rejected_at is not None else None,
+        "kept_at": img.kept_at.isoformat() if img.kept_at is not None else None,
+        "tagged_at": img.tagged_at.isoformat() if img.tagged_at is not None else None,
         "created_at": img.created_at.isoformat() if img.created_at is not None else None,
         "updated_at": img.updated_at.isoformat() if img.updated_at is not None else None,
     }
@@ -124,7 +128,7 @@ async def list_images(
     time_range: int = 120,
     has_ai: Optional[bool] = None,
     custom_tag: Optional[str] = None,
-    include_tagged: Optional[bool] = None,
+    only_tagged: Optional[bool] = None,
     lat: Optional[float] = None,
     lon: Optional[float] = None,
     radius: Optional[float] = None,
@@ -151,7 +155,7 @@ async def list_images(
             time_range=time_range,
             has_ai=has_ai,
             custom_tag=custom_tag,
-            include_tagged=bool(include_tagged),
+            only_tagged=bool(only_tagged),
             lat=lat,
             lon=lon,
             radius=radius,
@@ -206,25 +210,39 @@ async def get_image_full(request: Request, image_id: int):
     import mimetypes
     media_type = mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
 
-    # For images with stale EXIF orientation, strip the bad orientation tag
+    rotation = img.rotation
+    # For images needing EXIF fix or manual rotation, process with Pillow
     if media_type.startswith("image/"):
         try:
             from PIL import Image as PILImage
+            import io
             pil_img = PILImage.open(file_path)
+            needs_stream = False
+
+            # Strip stale EXIF orientation
             orientation = pil_img.getexif().get(274)
             if orientation in (5, 6, 7, 8):
                 w, h = pil_img.size
                 is_portrait = h > w
                 if (is_portrait and orientation in (6, 8)) or (not is_portrait and orientation in (5, 7)):
-                    # Stale orientation — serve with orientation stripped
-                    import io
                     exif = pil_img.getexif()
                     exif[274] = 1  # Normal orientation
-                    buf = io.BytesIO()
-                    pil_img.save(buf, format=pil_img.format or "JPEG", exif=exif.tobytes())
-                    buf.seek(0)
-                    pil_img.close()
-                    return StreamingResponse(buf, media_type=media_type)
+                    needs_stream = True
+
+            # Apply manual rotation
+            if rotation:
+                from PIL import ImageOps
+                pil_img = ImageOps.exif_transpose(pil_img)
+                pil_img = pil_img.rotate(-rotation, expand=True)
+                needs_stream = True
+
+            if needs_stream:
+                buf = io.BytesIO()
+                save_format = pil_img.format or "JPEG"
+                pil_img.save(buf, format=save_format, quality=92)
+                buf.seek(0)
+                pil_img.close()
+                return StreamingResponse(buf, media_type=media_type)
             pil_img.close()
         except Exception:
             pass  # Fall through to normal FileResponse
@@ -431,8 +449,17 @@ async def update_image_status(request: Request, image_id: int, body: ImageStatus
         if img is None:
             raise HTTPException(status_code=404, detail="Image not found")
         import datetime
+        now = datetime.datetime.utcnow()
         img.status = body.status
-        img.status_changed_at = datetime.datetime.utcnow()
+        img.status_changed_at = now
+        if body.status == 'kept':
+            img.kept_at = now
+        elif body.status == 'rejected':
+            img.rejected_at = now
+        elif body.status == 'indexed':
+            # Clearing status — reset specific timestamps
+            img.kept_at = None
+            img.rejected_at = None
         await session.commit()
     return {"id": image_id, "status": body.status}
 
@@ -453,10 +480,61 @@ async def update_image_tag(request: Request, image_id: int, body: ImageTagUpdate
         img = result.scalar_one_or_none()
         if img is None:
             raise HTTPException(status_code=404, detail="Image not found")
+        now = datetime.datetime.utcnow()
         img.custom_tag = body.custom_tag
-        img.status_changed_at = datetime.datetime.utcnow()
+        img.status_changed_at = now
+        img.tagged_at = now if body.custom_tag else None
         await session.commit()
     return {"id": image_id, "custom_tag": body.custom_tag, "status": img.status}
+
+
+@router.patch("/images/{image_id}/rotate")
+async def rotate_image(image_id: int, request: Request) -> Dict[str, Any]:
+    """Rotate image 90° clockwise and regenerate thumbnail."""
+    from sqlalchemy import select as sa_select
+    from backend.indexer.thumbnailer import generate_thumbnail
+    from pathlib import Path
+
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        result = await session.execute(sa_select(Image).where(Image.id == image_id))
+        img = result.scalar_one_or_none()
+        if img is None:
+            raise HTTPException(status_code=404, detail="Image not found")
+        img.rotation = (img.rotation + 90) % 360
+        rotation = img.rotation
+        file_path = img.file_path
+        await session.commit()
+
+    # Regenerate thumbnail with rotation applied
+    thumbs_dir = Path("data/thumbs")
+    source = Path(file_path)
+    if source.exists():
+        generate_thumbnail(source, thumbs_dir, image_id, rotation=rotation)
+
+    return {"id": image_id, "rotation": rotation}
+
+
+@router.post("/images/bulk-reject-missing")
+async def bulk_reject_missing(request: Request) -> Dict[str, Any]:
+    """Reject all images with status 'missing'."""
+    from sqlalchemy import select as sa_select, update as sa_update
+    import datetime
+
+    now = datetime.datetime.utcnow()
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        result = await session.execute(
+            sa_select(Image).where(Image.status == "missing")
+        )
+        missing = result.scalars().all()
+        count = len(missing)
+        for img in missing:
+            img.status = "rejected"
+            img.status_changed_at = now
+            img.rejected_at = now
+        await session.commit()
+    return {"rejected_count": count}
 
 
 @router.post("/images/{image_id}/reveal")

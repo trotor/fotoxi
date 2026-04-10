@@ -25,7 +25,7 @@ async def search_images(
     time_range: int = 120,
     has_ai: Optional[bool] = None,
     custom_tag: Optional[str] = None,
-    include_tagged: bool = False,
+    only_tagged: bool = False,
     lat: Optional[float] = None,
     lon: Optional[float] = None,
     radius: Optional[float] = None,
@@ -66,8 +66,10 @@ async def search_images(
     else:
         stmt = stmt.where(Image.status.notin_(["missing", "error"]))
 
-    # Hide tagged images by default, show when include_tagged is set
-    if not include_tagged and not custom_tag:
+    # Tagged image filter: show only tagged, or hide tagged by default
+    if only_tagged:
+        stmt = stmt.where(Image.custom_tag.isnot(None))
+    elif not custom_tag:
         stmt = stmt.where(Image.custom_tag.is_(None))
 
     # Media type filter
@@ -267,10 +269,12 @@ async def resolve_duplicate_group(
             if member.image_id in images:
                 images[member.image_id].status = "kept"
                 images[member.image_id].status_changed_at = _now
+                images[member.image_id].kept_at = _now
         elif member.image_id in reject_ids:
             member.user_choice = "reject"
             if member.image_id in images:
                 images[member.image_id].status = "rejected"
                 images[member.image_id].status_changed_at = _now
+                images[member.image_id].rejected_at = _now
 
     await session.commit()
