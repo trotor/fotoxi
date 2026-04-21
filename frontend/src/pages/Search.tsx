@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ImageData } from '../api'
-import { searchImages, thumbUrl, fullUrl, updateImageStatus, refreshImageAll, getRefreshStatus, revealImageInFinder, setImageCustomTag, rotateImage, bulkRejectMissing, getImageFolders, excludeFolder, getSettings } from '../api'
+import { searchImages, thumbUrl, fullUrl, updateImageStatus, refreshImageAll, getRefreshStatus, revealImageInFinder, setImageCustomTag, rotateImage, bulkRejectMissing, getImageFolders, excludeFolder, getSettings, geocodeSearch } from '../api'
+import type { GeocodeSuggestion } from '../api'
 import FilterBar from '../components/FilterBar'
 import { useI18n } from '../i18n/useTranslation'
 
@@ -27,6 +28,10 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
 }) {
   const { t } = useI18n()
   const [refreshStatus, setRefreshStatus] = useState<string | null>(null)
+  const [fullLoaded, setFullLoaded] = useState(false)
+
+  // Reset fullLoaded when image changes
+  useEffect(() => { setFullLoaded(false) }, [image.id])
 
   // Poll refresh status
   useEffect(() => {
@@ -102,7 +107,8 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
   if (image.exif_exposure) exifParts.push(`${image.exif_exposure}s`)
   if (image.exif_focal_length != null) exifParts.push(`${image.exif_focal_length}mm`)
   const hasGps = image.exif_gps_lat != null && image.exif_gps_lon != null
-  if (hasGps) exifParts.push('📍')
+  if (hasGps && image.location_name) exifParts.push(`📍 ${image.location_name}`)
+  else if (hasGps) exifParts.push('📍')
 
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center" onClick={onClose}>
@@ -129,8 +135,21 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
                 className="w-full max-h-[60vh] object-contain"
               />
             ) : (
-              <img src={`${fullUrl(image.id)}?r=${image.rotation || 0}`} alt={image.file_name}
-                className="w-full max-h-[60vh] object-contain" />
+              <div className="relative">
+                {/* Thumbnail shown immediately, hidden when full loads */}
+                <img
+                  src={thumbUrl(image.id)}
+                  alt={image.file_name}
+                  className={`w-full max-h-[60vh] object-contain ${fullLoaded ? 'hidden' : ''}`}
+                />
+                {/* Full image loads in background, shown when ready */}
+                <img
+                  src={`${fullUrl(image.id)}?r=${image.rotation || 0}`}
+                  alt={image.file_name}
+                  className={`w-full max-h-[60vh] object-contain ${fullLoaded ? '' : 'hidden'}`}
+                  onLoad={() => setFullLoaded(true)}
+                />
+              </div>
             )}
             {!isVideo && (
               <button onClick={() => onRotate(image.id)}
@@ -340,7 +359,7 @@ function ImageCard({ image, onClick, onStatusChange, onCustomTag, customTagLabel
           <span className="bg-black/70 text-blue-300 text-xs px-1.5 py-0.5 rounded">▶</span>
         )}
         {image.exif_gps_lat != null && image.exif_gps_lon != null && (
-          <span className="bg-black/70 text-green-300 text-xs px-1 py-0.5 rounded">📍</span>
+          <span className="bg-black/70 text-green-300 text-xs px-1 py-0.5 rounded" title={image.location_name || undefined}>📍{image.location_name ? ` ${image.location_name.split(',')[0]}` : ''}</span>
         )}
         {!hasRealExif && (
           <span className="bg-black/70 text-gray-500 text-xs px-1 py-0.5 rounded" title="No EXIF data">~</span>
@@ -432,6 +451,12 @@ export default function Search() {
   const [hasAiFilter, setHasAiFilter] = useState(false)
   const [showTagged, setShowTagged] = useState(false)
   const [showFolderPicker, setShowFolderPicker] = useState(false)
+  const [placeQuery, setPlaceQuery] = useState('')
+  const [placeSuggestions, setPlaceSuggestions] = useState<GeocodeSuggestion[]>([])
+  const [showPlaceSuggestions, setShowPlaceSuggestions] = useState(false)
+  const [locationLabel, setLocationLabel] = useState<string | null>(null)
+  const placeInputRef = useRef<HTMLInputElement>(null)
+  const placeDebounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const { data: settingsData } = useQuery({ queryKey: ['settings'], queryFn: getSettings })
   const customTagLabel = settingsData?.custom_tag_label || 'sentimental'
@@ -448,6 +473,31 @@ export default function Search() {
   })
   const [selectedImage, setSelectedImage] = useState<ImageData | null>(null)
   const [focusedIndex, setFocusedIndex] = useState<number>(-1)
+
+  // Place search with debounce
+  const handlePlaceInput = useCallback((value: string) => {
+    setPlaceQuery(value)
+    if (placeDebounceRef.current) clearTimeout(placeDebounceRef.current)
+    if (value.length < 2) {
+      setPlaceSuggestions([])
+      setShowPlaceSuggestions(false)
+      return
+    }
+    placeDebounceRef.current = setTimeout(async () => {
+      const results = await geocodeSearch(value)
+      setPlaceSuggestions(results)
+      setShowPlaceSuggestions(results.length > 0)
+    }, 400)
+  }, [])
+
+  const selectPlace = useCallback((place: GeocodeSuggestion) => {
+    setLocationNear({ lat: place.lat, lon: place.lon })
+    setLocationRadius(place.radius_km)
+    setLocationLabel(place.display_name.split(',').slice(0, 2).join(','))
+    setPlaceQuery('')
+    setPlaceSuggestions([])
+    setShowPlaceSuggestions(false)
+  }, [])
 
   // Sync URL params -> filters (when navigating from Stats etc.)
   useEffect(() => {
@@ -546,6 +596,7 @@ export default function Search() {
 
   const handleLocationNear = useCallback((lat: number, lon: number) => {
     setLocationNear({ lat, lon })
+    setLocationLabel(null)
   }, [])
 
   const handleCameraSelect = useCallback((cam: string) => {
@@ -724,6 +775,44 @@ export default function Search() {
         </button>
       </div>
 
+      {/* Place search */}
+      <div className="relative mb-2">
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1 max-w-sm">
+            <input
+              ref={placeInputRef}
+              type="text"
+              value={placeQuery}
+              onChange={e => handlePlaceInput(e.target.value)}
+              onFocus={() => placeSuggestions.length > 0 && setShowPlaceSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowPlaceSuggestions(false), 200)}
+              placeholder={t('search.place_placeholder')}
+              className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-green-600"
+            />
+            {showPlaceSuggestions && (
+              <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-600 rounded-lg shadow-xl overflow-hidden">
+                {placeSuggestions.map((place, i) => {
+                  const parts = place.display_name.split(',')
+                  const main = parts.slice(0, 2).join(',')
+                  const secondary = parts.slice(2, 4).join(',')
+                  return (
+                    <button
+                      key={i}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => selectPlace(place)}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-700 transition-colors border-b border-gray-700/50 last:border-0"
+                    >
+                      <div className="text-sm text-gray-100">{main}</div>
+                      <div className="text-xs text-gray-500">{secondary} — {place.radius_km < 1 ? `${Math.round(place.radius_km * 1000)}m` : `${place.radius_km} km`}</div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       <FilterBar
         dateFrom={dateFrom}
         dateTo={dateTo}
@@ -894,7 +983,7 @@ export default function Search() {
       {locationNear && (
         <div className="flex flex-wrap items-center gap-2 mb-2 bg-green-900/20 border border-green-800/30 rounded-lg px-3 py-2">
           <span className="text-green-200 text-xs">
-            📍 {locationNear.lat.toFixed(4)}, {locationNear.lon.toFixed(4)}
+            📍 {locationLabel || `${locationNear.lat.toFixed(4)}, ${locationNear.lon.toFixed(4)}`}
           </span>
           <div className="flex items-center gap-1">
             {[
@@ -903,6 +992,8 @@ export default function Search() {
               { label: '1 km', value: 1 },
               { label: '5 km', value: 5 },
               { label: '20 km', value: 20 },
+              { label: '50 km', value: 50 },
+              { label: '100 km', value: 100 },
             ].map(opt => (
               <button key={opt.value}
                 onClick={() => setLocationRadius(opt.value)}
@@ -927,7 +1018,7 @@ export default function Search() {
           >
             📍 only
           </button>
-          <button onClick={() => setLocationNear(null)} className="text-xs text-gray-500 hover:text-gray-300">
+          <button onClick={() => { setLocationNear(null); setLocationLabel(null) }} className="text-xs text-gray-500 hover:text-gray-300">
             {t('search.clear')}
           </button>
         </div>

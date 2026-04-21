@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { DuplicateGroup, DuplicateMember } from '../api'
-import { getDuplicates, thumbUrl } from '../api'
+import { getDuplicates, findDuplicates, thumbUrl } from '../api'
 import { useI18n } from '../i18n/useTranslation'
 
 /** Hamming distance between two hex hash strings */
@@ -120,9 +120,40 @@ export default function Duplicates() {
   const { t } = useI18n()
   const MATCH_TYPE_LABELS = useMatchLabels()
 
+  const [scanning, setScanning] = useState(false)
+
+  const handleFindDuplicates = async () => {
+    setScanning(true)
+    try {
+      await findDuplicates()
+      // Poll until complete
+      const poll = setInterval(async () => {
+        const res = await fetch('/api/indexer/status')
+        const status = await res.json()
+        if (!status.running) {
+          clearInterval(poll)
+          setScanning(false)
+          queryClient.invalidateQueries({ queryKey: ['duplicates'] })
+        }
+      }, 2000)
+    } catch {
+      setScanning(false)
+    }
+  }
+
+  const findButton = (
+    <button
+      onClick={handleFindDuplicates}
+      disabled={scanning}
+      className="px-4 py-2 rounded bg-blue-700 hover:bg-blue-600 text-white text-sm disabled:opacity-50 disabled:cursor-wait"
+    >
+      {scanning ? t('dup.scanning') : t('dup.find_duplicates')}
+    </button>
+  )
+
   if (isLoading) return <div className="text-center py-12 text-gray-400">{t('search.loading')}</div>
   if (isError) return <div className="text-center py-12 text-red-400">Error</div>
-  if (groups.length === 0 || !group) return <div className="text-center py-12 text-gray-500">{t('dup.no_duplicates')}</div>
+  if (groups.length === 0 || !group) return <div className="text-center py-12 text-gray-500">{findButton}<div className="mt-4">{t('dup.no_duplicates')}</div></div>
 
   function toggleReject(imageId: number) {
     if (!group) return
@@ -228,6 +259,8 @@ export default function Duplicates() {
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto p-4">
+      {/* Actions */}
+      <div className="flex justify-end">{findButton}</div>
       {/* Progress */}
       <div className="flex justify-between items-center text-sm text-gray-400">
         <span>{t('dup.group')} {(dupPage - 1) * 20 + groupIndex + 1} / {totalGroups}</span>

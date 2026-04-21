@@ -30,6 +30,9 @@ class Image(Base):
     file_mtime: Mapped[float] = mapped_column(Float, nullable=False)
     source_type: Mapped[str] = mapped_column(Text, nullable=False, default="local")
 
+    # File content hash (SHA-256) for exact duplicate detection
+    file_hash: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Perceptual hashes
     phash: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     dhash: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -45,6 +48,7 @@ class Image(Base):
     exif_camera_model: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     exif_gps_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     exif_gps_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    location_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     exif_focal_length: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     exif_aperture: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     exif_iso: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -87,6 +91,7 @@ class Image(Base):
     )
 
     __table_args__ = (
+        Index("ix_images_file_hash", "file_hash"),
         Index("ix_images_phash", "phash"),
         Index("ix_images_dhash", "dhash"),
         Index("ix_images_exif_date", "exif_date"),

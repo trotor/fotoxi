@@ -74,6 +74,21 @@ def _generate_image_thumbnail(source: Path, thumb_path: Path, rotation: int = 0)
         return None
 
 
+def _extract_video_frame(cap, target_frame: int) -> Optional["numpy.ndarray"]:
+    """Extract and resize a single frame from an open VideoCapture."""
+    import cv2
+    cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+    ret, frame = cap.read()
+    if not ret or frame is None:
+        return None
+    h, w = frame.shape[:2]
+    if w > h:
+        new_w, new_h = 300, int(300 * h / w)
+    else:
+        new_w, new_h = int(300 * w / h), 300
+    return cv2.resize(frame, (new_w, new_h))
+
+
 def _generate_video_thumbnail(source: Path, thumb_path: Path) -> Optional[Path]:
     try:
         import cv2
@@ -82,30 +97,21 @@ def _generate_video_thumbnail(source: Path, thumb_path: Path) -> Optional[Path]:
             logger.warning("Cannot open video %s", source)
             return None
 
-        # Seek to ~1 second or 10% of video
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
         fps = cap.get(cv2.CAP_PROP_FPS) or 30
-        total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0
-        target_frame = min(int(fps), int(total_frames * 0.1)) if total_frames > 0 else int(fps)
-        cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
 
-        ret, frame = cap.read()
-        if not ret:
-            # Fallback to first frame
-            cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-            ret, frame = cap.read()
+        # Main thumbnail: frame at ~1 second or 10%
+        target_frame = min(int(fps), int(total_frames * 0.1)) if total_frames > 0 else int(fps)
+        frame = _extract_video_frame(cap, target_frame)
+
+        if frame is None:
+            frame = _extract_video_frame(cap, 0)
+
         cap.release()
 
-        if not ret or frame is None:
+        if frame is None:
             logger.warning("Cannot read frame from %s", source)
             return None
-
-        # Resize to 300px longest side
-        h, w = frame.shape[:2]
-        if w > h:
-            new_w, new_h = 300, int(300 * h / w)
-        else:
-            new_w, new_h = int(300 * w / h), 300
-        frame = cv2.resize(frame, (new_w, new_h))
 
         cv2.imwrite(str(thumb_path), frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
         return thumb_path
@@ -115,3 +121,38 @@ def _generate_video_thumbnail(source: Path, thumb_path: Path) -> Optional[Path]:
     except Exception as exc:
         logger.warning("Failed to generate video thumbnail for %s: %s", source, exc)
         return None
+
+
+def extract_video_keyframes(source: Path, thumbs_dir: Path, image_id: int, num_frames: int = 3) -> list[Path]:
+    """Extract multiple keyframes from a video for AI analysis.
+
+    Picks frames at evenly spaced positions (25%, 50%, 75% for 3 frames).
+    Returns list of saved frame paths.
+    """
+    try:
+        import cv2
+        cap = cv2.VideoCapture(str(source))
+        if not cap.isOpened():
+            return []
+
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        if total_frames < num_frames:
+            cap.release()
+            return []
+
+        paths = []
+        for i in range(num_frames):
+            position = int(total_frames * (i + 1) / (num_frames + 1))
+            frame = _extract_video_frame(cap, position)
+            if frame is not None:
+                frame_path = thumbs_dir / f"{image_id}_frame{i}.jpg"
+                cv2.imwrite(str(frame_path), frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                paths.append(frame_path)
+
+        cap.release()
+        return paths
+    except ImportError:
+        return []
+    except Exception as exc:
+        logger.warning("Failed to extract keyframes from %s: %s", source, exc)
+        return []

@@ -16,6 +16,8 @@ from backend.db.queries import (
     resolve_duplicate_group,
     search_images,
 )
+from sqlalchemy import select
+
 from backend.db.models import Image
 
 router = APIRouter()
@@ -47,6 +49,7 @@ def _image_to_dict(img: Image) -> Dict[str, Any]:
         "exif_camera_model": img.exif_camera_model,
         "exif_gps_lat": img.exif_gps_lat,
         "exif_gps_lon": img.exif_gps_lon,
+        "location_name": img.location_name,
         "exif_focal_length": img.exif_focal_length,
         "exif_aperture": img.exif_aperture,
         "exif_iso": img.exif_iso,
@@ -129,6 +132,7 @@ async def list_images(
     has_ai: Optional[bool] = None,
     custom_tag: Optional[str] = None,
     only_tagged: Optional[bool] = None,
+    location: Optional[str] = None,
     lat: Optional[float] = None,
     lon: Optional[float] = None,
     radius: Optional[float] = None,
@@ -156,6 +160,7 @@ async def list_images(
             has_ai=has_ai,
             custom_tag=custom_tag,
             only_tagged=bool(only_tagged),
+            location=location,
             lat=lat,
             lon=lon,
             radius=radius,
@@ -891,6 +896,23 @@ async def indexer_status(request: Request) -> Dict[str, Any]:
         )
         ai_missing = ai_missing_result.scalar() or 0
 
+        # Count images with GPS and location names
+        gps_result = await session.execute(
+            select(func.count(Image.id)).where(
+                Image.exif_gps_lat.is_not(None),
+                Image.status.notin_(["missing", "error"]),
+            )
+        )
+        gps_count = gps_result.scalar() or 0
+
+        geocoded_result = await session.execute(
+            select(func.count(Image.id)).where(
+                Image.location_name.is_not(None),
+                Image.status.notin_(["missing", "error"]),
+            )
+        )
+        geocoded_count = geocoded_result.scalar() or 0
+
         # Format breakdown (top formats by count, excluding missing/error)
         format_result = await session.execute(
             select(Image.format, func.count(Image.id))
@@ -922,6 +944,8 @@ async def indexer_status(request: Request) -> Dict[str, Any]:
         "formats": format_counts,
         "videos_pending": video_by_status.get("pending", 0),
         "videos_indexed": video_by_status.get("indexed", 0) + video_by_status.get("kept", 0),
+        "gps_count": gps_count,
+        "geocoded_count": geocoded_count,
     }
     return result
 
@@ -959,7 +983,7 @@ async def indexer_process(request: Request) -> Dict[str, Any]:
             if not orchestrator._stop_event.is_set():
                 await orchestrator.process_ai()
             if not orchestrator._stop_event.is_set():
-                await orchestrator.group_duplicates()
+                await orchestrator.process_geocoding()
             orchestrator.state.phase = "complete"
         except Exception as exc:
             import logging
@@ -979,6 +1003,106 @@ async def indexer_stop(request: Request) -> Dict[str, Any]:
     orchestrator = request.app.state.orchestrator
     orchestrator.request_stop()
     return {"status": "stopping"}
+
+
+@router.post("/indexer/find-duplicates")
+async def indexer_find_duplicates(request: Request) -> Dict[str, Any]:
+    """Manually trigger duplicate grouping (file hash + pHash + burst detection)."""
+    orchestrator = request.app.state.orchestrator
+    if orchestrator.state.running:
+        if hasattr(orchestrator, '_task') and orchestrator._task and orchestrator._task.done():
+            orchestrator.state.running = False
+        else:
+            raise HTTPException(status_code=409, detail="Indexer is already running")
+
+    async def _find_duplicates():
+        orchestrator._stop_event.clear()
+        orchestrator.state.running = True
+        orchestrator._notify()
+        try:
+            await orchestrator.group_duplicates()
+            orchestrator.state.phase = "complete"
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("find_duplicates error: %s", exc)
+            orchestrator.state.phase = "error"
+        finally:
+            orchestrator.state.running = False
+            orchestrator._notify()
+
+    task = asyncio.create_task(_find_duplicates())
+    orchestrator._task = task
+    return {"status": "started"}
+
+
+# ---------------------------------------------------------------------------
+# Geocoding
+# ---------------------------------------------------------------------------
+
+
+@router.get("/geocode")
+async def geocode_search(q: str) -> List[Dict[str, Any]]:
+    """Forward geocode a place name using OpenStreetMap Nominatim.
+
+    Returns a list of matching places with coordinates and bounding boxes.
+    """
+    import httpx
+
+    if not q or len(q.strip()) < 2:
+        return []
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={
+                    "q": q,
+                    "format": "json",
+                    "limit": 5,
+                    "addressdetails": 1,
+                },
+                headers={"User-Agent": "Fotoxi/1.0"},
+            )
+            resp.raise_for_status()
+            results = resp.json()
+    except Exception:
+        return []
+
+    places = []
+    for r in results:
+        bbox = r.get("boundingbox", [])
+        # Nominatim bbox: [south_lat, north_lat, west_lon, east_lon]
+        lat = float(r["lat"])
+        lon = float(r["lon"])
+
+        # Calculate radius from bounding box (diagonal / 2 in km)
+        if len(bbox) == 4:
+            import math
+            lat_span = abs(float(bbox[1]) - float(bbox[0]))
+            lon_span = abs(float(bbox[3]) - float(bbox[2]))
+            radius_km = max(
+                lat_span * 111.0 / 2,
+                lon_span * 111.0 * math.cos(math.radians(lat)) / 2,
+            )
+            # Clamp to reasonable range
+            radius_km = max(0.5, min(radius_km, 200.0))
+        else:
+            radius_km = 10.0
+
+        # Build display name from address parts
+        addr = r.get("address", {})
+        display = r.get("display_name", q)
+
+        places.append({
+            "display_name": display,
+            "lat": lat,
+            "lon": lon,
+            "radius_km": round(radius_km, 1),
+            "type": r.get("type", ""),
+            "address": addr,
+        })
+
+    return places
 
 
 # ---------------------------------------------------------------------------

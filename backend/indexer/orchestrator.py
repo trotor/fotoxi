@@ -18,9 +18,10 @@ from backend.db.models import Image
 from backend.indexer.analyzer import analyze_image
 from backend.indexer.eviction import evict_file, is_cloud_path
 from backend.indexer.exif import extract_exif
+from backend.indexer.geocoder import batch_reverse_geocode
 from backend.indexer.hasher import compute_hashes
 from backend.indexer.scanner import scan_directory
-from backend.indexer.thumbnailer import generate_thumbnail
+from backend.indexer.thumbnailer import generate_thumbnail, extract_video_keyframes
 from backend.grouping.duplicates import find_duplicate_groups
 
 logger = logging.getLogger(__name__)
@@ -175,16 +176,25 @@ class IndexerOrchestrator:
         self.state.current_source_dir = ""
 
         # Mark files that are in DB but no longer on disk as "missing"
+        import datetime as _dt
         async with self.session_factory() as session:
-            result = await session.execute(select(Image))
+            result = await session.execute(
+                select(Image).where(Image.status != "missing")
+            )
             all_images = result.scalars().all()
+            missing_count = 0
             for image in all_images:
                 if self._stop_event.is_set():
                     return
-                if image.file_path not in found_paths and image.status not in ("missing", "kept", "rejected"):
+                if image.file_path not in found_paths:
                     image.status = "missing"
+                    image.status_changed_at = _dt.datetime.utcnow()
+                    missing_count += 1
                     logger.debug("scan: marked missing file: %s", image.file_path)
             await session.commit()
+            if missing_count:
+                self.state.log(f"🗑 {missing_count} missing files marked")
+                logger.info("scan: marked %d files as missing", missing_count)
 
         self.state.total = self.state.processed
         self._notify()
@@ -297,6 +307,7 @@ class IndexerOrchestrator:
                         if hash_data:
                             img.phash = hash_data.get("phash")
                             img.dhash = hash_data.get("dhash")
+                            img.file_hash = hash_data.get("file_hash")
 
                         import datetime as _dt
                         _now = _dt.datetime.utcnow()
@@ -352,6 +363,72 @@ class IndexerOrchestrator:
             await asyncio.gather(*[_process_one(img) for img in batch], return_exceptions=True)
 
     # ------------------------------------------------------------------
+    # Phase 2b: Reverse geocoding
+    # ------------------------------------------------------------------
+
+    async def process_geocoding(self) -> None:
+        """Reverse geocode images that have GPS but no location_name."""
+        self.state.phase = "geocoding"
+        self.state.processed = 0
+        self.state.errors = 0
+        self._notify()
+
+        # Find images with GPS but no location_name
+        async with self.session_factory() as session:
+            result = await session.execute(
+                select(Image).where(
+                    Image.exif_gps_lat.is_not(None),
+                    Image.exif_gps_lon.is_not(None),
+                    Image.location_name.is_(None),
+                    Image.status.notin_(["missing", "error"]),
+                )
+            )
+            candidates = result.scalars().all()
+
+        if not candidates:
+            logger.info("process_geocoding: no images need geocoding")
+            return
+
+        self.state.total = len(candidates)
+        self._notify()
+
+        coords = [
+            (img.id, img.exif_gps_lat, img.exif_gps_lon)
+            for img in candidates
+        ]
+
+        saved_count = 0
+
+        def _on_progress(done: int, total: int, name: str | None = None, img_count: int = 0) -> None:
+            self.state.processed = done
+            if name:
+                self.state.log(f"📍 {done}/{total} — {name} ({img_count} kuvaa)")
+            else:
+                self.state.log(f"📍 {done}/{total} — ei tulosta")
+            self._notify()
+
+        async def _on_cluster_done(image_ids: list[int], name: str) -> None:
+            nonlocal saved_count
+            async with self.session_factory() as session:
+                await session.execute(
+                    update(Image)
+                    .where(Image.id.in_(image_ids))
+                    .values(location_name=name)
+                )
+                await session.commit()
+            saved_count += len(image_ids)
+
+        await batch_reverse_geocode(
+            coords,
+            on_progress=_on_progress,
+            on_cluster_done=_on_cluster_done,
+            stop_event=self._stop_event,
+        )
+
+        self.state.log(f"📍 Geocoded {saved_count} images")
+        logger.info("process_geocoding: geocoded %d images", saved_count)
+
+    # ------------------------------------------------------------------
     # Phase 3: AI analysis
     # ------------------------------------------------------------------
 
@@ -378,7 +455,7 @@ class IndexerOrchestrator:
             return False
 
     async def process_ai(self) -> None:
-        """Run AI analysis on images that have phash but are still pending."""
+        """Run AI analysis on indexed images without AI description."""
         self.state.phase = "ai_analysis"
         self.state.ai_processed = 0
         self.state.ai_total = 0
@@ -389,11 +466,10 @@ class IndexerOrchestrator:
         # Check if Ollama is running before starting
         if not await self._check_ollama():
             logger.warning("Ollama not reachable at %s, skipping AI analysis", self.config.ollama_url)
-            # Mark pending images with metadata as "indexed" (no AI available)
+            # Mark pending images as "indexed" (no AI available)
             async with self.session_factory() as session:
                 result = await session.execute(
                     select(Image).where(
-                        Image.phash.is_not(None),
                         Image.status == "pending",
                     )
                 )
@@ -403,11 +479,10 @@ class IndexerOrchestrator:
             logger.info("Marked pending images as indexed (no AI)")
             return
 
-        # Images with metadata but without AI description
+        # Images without AI description
         async with self.session_factory() as session:
             result = await session.execute(
                 select(Image).where(
-                    Image.phash.is_not(None),
                     Image.ai_description.is_(None),
                     Image.status.in_(["pending", "indexed", "kept"]),
                 )
@@ -437,6 +512,16 @@ class IndexerOrchestrator:
                 if self._stop_event.is_set():
                     return
                 try:
+                    # For videos, extract keyframes for multi-frame AI analysis
+                    from backend.indexer.scanner import VIDEO_EXTENSIONS
+                    extra_frames = []
+                    if file_path.suffix.lower() in VIDEO_EXTENSIONS:
+                        thumbs_dir = Path(self.config.thumbs_dir)
+                        extra_frames = await loop.run_in_executor(
+                            None,
+                            lambda: extract_video_keyframes(file_path, thumbs_dir, image_id, num_frames=3),
+                        )
+
                     ai_result = await loop.run_in_executor(
                         None,
                         lambda: analyze_image(
@@ -446,6 +531,7 @@ class IndexerOrchestrator:
                             language=self.config.ai_language,
                             quality_enabled=self.config.ai_quality_enabled,
                             thumb_path=Path(self.config.thumbs_dir) / f"{image_id}.jpg",
+                            extra_frames=[str(p) for p in extra_frames],
                         ),
                     )
 
@@ -530,11 +616,12 @@ class IndexerOrchestrator:
         self.state.current_file = ""
         self._notify()
 
-        # Load all images with phash
+        # Load all images with phash or file_hash
         async with self.session_factory() as session:
+            from sqlalchemy import or_
             result = await session.execute(
                 select(Image).where(
-                    Image.phash.is_not(None),
+                    or_(Image.phash.is_not(None), Image.file_hash.is_not(None)),
                     Image.status.notin_(["rejected", "missing", "error"]),
                 )
             )
@@ -551,6 +638,7 @@ class IndexerOrchestrator:
             {
                 "id": img.id,
                 "phash": img.phash,
+                "file_hash": img.file_hash,
                 "exif_date": img.exif_date,
                 "exif_camera_model": img.exif_camera_model,
                 "file_path": img.file_path,
@@ -658,7 +746,6 @@ class IndexerOrchestrator:
                 result = await session.execute(
                     select(Image.id).where(
                         Image.ai_description.is_(None),
-                        Image.phash.is_not(None),
                         Image.status.in_(["indexed", "kept"]),
                     ).limit(1)
                 )
@@ -692,7 +779,7 @@ class IndexerOrchestrator:
                 self.state.phase = "idle"
                 return
 
-            await self.group_duplicates()
+            await self.process_geocoding()
             if self._stop_event.is_set():
                 self.state.phase = "idle"
                 return

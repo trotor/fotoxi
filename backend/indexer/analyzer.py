@@ -68,29 +68,52 @@ def analyze_image(
     retries: int = 3,
     retry_delay: float = 30.0,
     thumb_path: str | Path | None = None,
+    extra_frames: list[str | Path] | None = None,
 ) -> Optional[dict]:
-    """Analyze an image using an Ollama vision model.
+    """Analyze an image or video using an Ollama vision model.
 
     Uses thumbnail if available (much faster, no cloud download needed).
-    Skips videos without thumbnails.
+    For videos, extra_frames can provide additional keyframes for better analysis.
     Returns a dict with 'description', 'tags', and 'quality_score'.
     """
     path = Path(path)
-    # Prefer thumbnail for AI analysis (300px is enough for description)
+    is_video = len(extra_frames or []) > 0
+
+    # Collect all image data to send
+    images_b64 = []
+
+    # Primary image: thumbnail or original
     source = Path(thumb_path) if thumb_path and Path(thumb_path).exists() else path
     try:
-        image_data = base64.b64encode(source.read_bytes()).decode("utf-8")
+        images_b64.append(base64.b64encode(source.read_bytes()).decode("utf-8"))
     except OSError as exc:
         logger.error("Cannot read image file %s: %s", path, exc)
         return None
+
+    # Additional keyframes for videos
+    for frame_path in (extra_frames or []):
+        try:
+            images_b64.append(base64.b64encode(Path(frame_path).read_bytes()).decode("utf-8"))
+        except OSError:
+            continue
 
     quality_instruction = (
         '\n- "quality_score": a float between 0.0 and 1.0 rating photographic quality (sharpness, exposure, composition)'
         if quality_enabled
         else ""
     )
+
+    if is_video:
+        media_context = (
+            f"These are {len(images_b64)} frames from a video. "
+            f"Analyze the overall content of the video based on these frames.\n"
+        )
+    else:
+        media_context = ""
+
     prompt = (
-        f"Analyze this image carefully and respond with ONLY a JSON object (no other text).\n"
+        f"{media_context}"
+        f"Analyze {'this video' if is_video else 'this image'} carefully and respond with ONLY a JSON object (no other text).\n"
         f"Fields:\n"
         f'- "description": 2-3 sentence description in {language}. Include what is shown, '
         f"the setting/environment, mood, and any notable details.\n"
@@ -111,7 +134,7 @@ def analyze_image(
             {
                 "role": "user",
                 "content": prompt,
-                "images": [image_data],
+                "images": images_b64,
             }
         ],
     }

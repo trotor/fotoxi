@@ -13,6 +13,7 @@ export interface ImageData {
   exif_camera_model: string | null
   exif_gps_lat: number | null
   exif_gps_lon: number | null
+  location_name: string | null
   exif_focal_length: number | null
   exif_aperture: number | null
   exif_iso: number | null
@@ -63,6 +64,8 @@ export interface DbSummary {
   videos_indexed: number
   ai_done: number
   ai_missing: number
+  gps_count: number
+  geocoded_count: number
   formats: Record<string, number>
 }
 
@@ -257,6 +260,27 @@ export async function processOnly(): Promise<void> {
 export async function stopIndexer(): Promise<void> {
   const res = await fetch(`${BASE}/indexer/stop`, { method: 'POST' })
   if (!res.ok) throw new Error(`Stop failed: ${res.status}`)
+}
+
+export async function findDuplicates(): Promise<void> {
+  const res = await fetch(`${BASE}/indexer/find-duplicates`, { method: 'POST' })
+  if (!res.ok) throw new Error(`Find duplicates failed: ${res.status}`)
+}
+
+export interface GeocodeSuggestion {
+  display_name: string
+  lat: number
+  lon: number
+  radius_km: number
+  type: string
+  address: Record<string, string>
+}
+
+export async function geocodeSearch(q: string): Promise<GeocodeSuggestion[]> {
+  if (!q || q.length < 2) return []
+  const res = await fetch(`${BASE}/geocode?q=${encodeURIComponent(q)}`)
+  if (!res.ok) return []
+  return res.json()
 }
 
 export async function getSettings(): Promise<AppSettings> {

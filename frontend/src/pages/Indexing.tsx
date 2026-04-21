@@ -20,6 +20,7 @@ const PHASE_KEYS: Record<string, string> = {
   metadata: 'idx.phase.metadata',
   starting: 'idx.phase.starting',
   ai_analysis: 'idx.phase.ai_analysis',
+  geocoding: 'idx.phase.geocoding',
   grouping: 'idx.phase.grouping',
   complete: 'idx.phase.complete',
   error: 'idx.phase.error',
@@ -286,6 +287,9 @@ export default function Indexing() {
                 <span>{t('idx.kept_label')}: <span className="text-blue-300">{db.kept}</span></span>
                 <span>{t('idx.ai_desc')}: <span className="text-green-300">{db.ai_done}</span>{db.ai_missing > 0 && <span className="text-yellow-400"> / {t('idx.missing_label')} {db.ai_missing}</span>}</span>
                 <span>{t('idx.videos_label')}: <span className="text-blue-300">{db.videos_indexed}</span>{db.videos_pending > 0 && <span className="text-yellow-400"> / {t('idx.pending_label')} {db.videos_pending}</span>}</span>
+                {db.gps_count > 0 && (
+                  <span>📍 GPS: <span className="text-green-300">{db.geocoded_count}</span> / {db.gps_count}</span>
+                )}
                 <span>{t('common.errors')}: <span className="text-red-400">{db.error}</span></span>
               </div>
               {/* Format breakdown */}

@@ -26,6 +26,7 @@ async def search_images(
     has_ai: Optional[bool] = None,
     custom_tag: Optional[str] = None,
     only_tagged: bool = False,
+    location: Optional[str] = None,
     lat: Optional[float] = None,
     lon: Optional[float] = None,
     radius: Optional[float] = None,
@@ -69,7 +70,7 @@ async def search_images(
     # Tagged image filter: show only tagged, or hide tagged by default
     if only_tagged:
         stmt = stmt.where(Image.custom_tag.isnot(None))
-    elif not custom_tag:
+    elif not status and not custom_tag:
         stmt = stmt.where(Image.custom_tag.is_(None))
 
     # Media type filter
@@ -98,6 +99,10 @@ async def search_images(
         stmt = stmt.where(Image.custom_tag.is_not(None))
     elif custom_tag:
         stmt = stmt.where(Image.custom_tag == custom_tag)
+
+    # Location name filter (substring match)
+    if location:
+        stmt = stmt.where(Image.location_name.ilike(f"%{location}%"))
 
     # GPS proximity filter (bounding box approximation)
     if lat is not None and lon is not None and radius is not None:
