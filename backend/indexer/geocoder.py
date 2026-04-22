@@ -73,7 +73,10 @@ async def reverse_geocode(lat: float, lon: float) -> Optional[str]:
                     "addressdetails": 1,
                     "zoom": 14,  # city/town level
                 },
-                headers={"User-Agent": "Fotoxi/1.0"},
+                headers={
+                    "User-Agent": "Fotoxi/1.0",
+                    "Accept-Language": "fi,en",
+                },
             )
             resp.raise_for_status()
             data = resp.json()

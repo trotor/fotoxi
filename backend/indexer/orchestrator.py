@@ -363,6 +363,99 @@ class IndexerOrchestrator:
             await asyncio.gather(*[_process_one(img) for img in batch], return_exceptions=True)
 
     # ------------------------------------------------------------------
+    # Phase 2a: File hashes
+    # ------------------------------------------------------------------
+
+    async def process_file_hashes(self) -> None:
+        """Compute SHA-256 file hashes for images that don't have one yet.
+
+        Only processes locally available files (skips missing/error).
+        """
+        from backend.indexer.hasher import compute_file_hash
+
+        self.state.phase = "hashing"
+        self.state.processed = 0
+        self.state.errors = 0
+        self._notify()
+
+        async with self.session_factory() as session:
+            result = await session.execute(
+                select(Image).where(
+                    Image.file_hash.is_(None),
+                    Image.status.notin_(["missing", "error"]),
+                )
+            )
+            candidates = result.scalars().all()
+
+        if not candidates:
+            logger.info("process_file_hashes: all images already have file_hash")
+            return
+
+        self.state.total = len(candidates)
+        self._notify()
+
+        loop = asyncio.get_event_loop()
+        local_sem = asyncio.Semaphore(max(self.config.thread_pool_size, 8))
+        cloud_sem = asyncio.Semaphore(3)
+        start_time = time.monotonic()
+
+        async def _hash_one(image: Image) -> None:
+            if self._stop_event.is_set():
+                return
+
+            file_path = Path(image.file_path)
+
+            if not file_path.exists():
+                self.state.errors += 1
+                return
+
+            sem = cloud_sem if is_cloud_path(file_path) else local_sem
+            async with sem:
+                if self._stop_event.is_set():
+                    return
+
+                self.state.current_file = image.file_name
+                self._notify()
+
+                try:
+                    file_hash = await loop.run_in_executor(
+                        None, compute_file_hash, file_path
+                    )
+
+                    if file_hash:
+                        async with self.session_factory() as session:
+                            result = await session.execute(
+                                select(Image).where(Image.id == image.id)
+                            )
+                            img = result.scalar_one_or_none()
+                            if img:
+                                img.file_hash = file_hash
+                                await session.commit()
+                        self.state.processed += 1
+                    else:
+                        self.state.errors += 1
+
+                except Exception as exc:
+                    logger.warning("file hash error for %s: %s", file_path, exc)
+                    self.state.errors += 1
+
+                elapsed = time.monotonic() - start_time
+                total_done = self.state.processed + self.state.errors
+                self.state.speed = total_done / elapsed if elapsed > 0 else 0.0
+                self._notify()
+
+        # Process in batches
+        BATCH = 50
+        for i in range(0, len(candidates), BATCH):
+            if self._stop_event.is_set():
+                break
+            batch = candidates[i:i + BATCH]
+            await asyncio.gather(*[_hash_one(img) for img in batch], return_exceptions=True)
+
+        self.state.log(f"#️⃣ {self.state.processed} file hashes computed")
+        logger.info("process_file_hashes: computed %d hashes", self.state.processed)
+
+    # ------------------------------------------------------------------
     # Phase 2b: Reverse geocoding
     # ------------------------------------------------------------------
 
@@ -397,7 +490,15 @@ class IndexerOrchestrator:
             for img in candidates
         ]
 
+        # Build lookup for images needing file_hash
+        needs_hash: dict[int, str] = {}
+        for img in candidates:
+            if img.file_hash is None:
+                needs_hash[img.id] = img.file_path
+
         saved_count = 0
+        hashed_count = 0
+        loop = asyncio.get_event_loop()
 
         def _on_progress(done: int, total: int, name: str | None = None, img_count: int = 0) -> None:
             self.state.processed = done
@@ -408,13 +509,33 @@ class IndexerOrchestrator:
             self._notify()
 
         async def _on_cluster_done(image_ids: list[int], name: str) -> None:
-            nonlocal saved_count
+            nonlocal saved_count, hashed_count
+            from backend.indexer.hasher import compute_file_hash
+
+            # Compute file hashes for images in this cluster that need one
+            hash_updates: dict[int, str] = {}
+            for img_id in image_ids:
+                if img_id in needs_hash:
+                    file_path = Path(needs_hash[img_id])
+                    if file_path.exists():
+                        fh = await loop.run_in_executor(None, compute_file_hash, file_path)
+                        if fh:
+                            hash_updates[img_id] = fh
+                            hashed_count += 1
+
+            # Save location_name + file_hash in one transaction
             async with self.session_factory() as session:
                 await session.execute(
                     update(Image)
                     .where(Image.id.in_(image_ids))
                     .values(location_name=name)
                 )
+                for img_id, fh in hash_updates.items():
+                    await session.execute(
+                        update(Image)
+                        .where(Image.id == img_id)
+                        .values(file_hash=fh)
+                    )
                 await session.commit()
             saved_count += len(image_ids)
 
@@ -425,8 +546,8 @@ class IndexerOrchestrator:
             stop_event=self._stop_event,
         )
 
-        self.state.log(f"📍 Geocoded {saved_count} images")
-        logger.info("process_geocoding: geocoded %d images", saved_count)
+        self.state.log(f"📍 Geocoded {saved_count} images" + (f", #️⃣ {hashed_count} hashes" if hashed_count else ""))
+        logger.info("process_geocoding: geocoded %d images, computed %d file hashes", saved_count, hashed_count)
 
     # ------------------------------------------------------------------
     # Phase 3: AI analysis

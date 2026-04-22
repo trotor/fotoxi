@@ -66,6 +66,7 @@ export interface DbSummary {
   ai_missing: number
   gps_count: number
   geocoded_count: number
+  hash_count: number
   formats: Record<string, number>
 }
 
@@ -265,6 +266,11 @@ export async function stopIndexer(): Promise<void> {
 export async function findDuplicates(): Promise<void> {
   const res = await fetch(`${BASE}/indexer/find-duplicates`, { method: 'POST' })
   if (!res.ok) throw new Error(`Find duplicates failed: ${res.status}`)
+}
+
+export async function computeHashes(): Promise<void> {
+  const res = await fetch(`${BASE}/indexer/compute-hashes`, { method: 'POST' })
+  if (!res.ok) throw new Error(`Compute hashes failed: ${res.status}`)
 }
 
 export interface GeocodeSuggestion {

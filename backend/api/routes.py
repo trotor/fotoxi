@@ -896,6 +896,15 @@ async def indexer_status(request: Request) -> Dict[str, Any]:
         )
         ai_missing = ai_missing_result.scalar() or 0
 
+        # Count images with file hashes
+        hash_result = await session.execute(
+            select(func.count(Image.id)).where(
+                Image.file_hash.is_not(None),
+                Image.status.notin_(["missing", "error"]),
+            )
+        )
+        hash_count = hash_result.scalar() or 0
+
         # Count images with GPS and location names
         gps_result = await session.execute(
             select(func.count(Image.id)).where(
@@ -946,6 +955,7 @@ async def indexer_status(request: Request) -> Dict[str, Any]:
         "videos_indexed": video_by_status.get("indexed", 0) + video_by_status.get("kept", 0),
         "gps_count": gps_count,
         "geocoded_count": geocoded_count,
+        "hash_count": hash_count,
     }
     return result
 
@@ -1035,6 +1045,36 @@ async def indexer_find_duplicates(request: Request) -> Dict[str, Any]:
     return {"status": "started"}
 
 
+@router.post("/indexer/compute-hashes")
+async def indexer_compute_hashes(request: Request) -> Dict[str, Any]:
+    """Compute SHA-256 file hashes for images that don't have one yet."""
+    orchestrator = request.app.state.orchestrator
+    if orchestrator.state.running:
+        if hasattr(orchestrator, '_task') and orchestrator._task and orchestrator._task.done():
+            orchestrator.state.running = False
+        else:
+            raise HTTPException(status_code=409, detail="Indexer is already running")
+
+    async def _compute_hashes():
+        orchestrator._stop_event.clear()
+        orchestrator.state.running = True
+        orchestrator._notify()
+        try:
+            await orchestrator.process_file_hashes()
+            orchestrator.state.phase = "complete"
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("compute_hashes error: %s", exc)
+            orchestrator.state.phase = "error"
+        finally:
+            orchestrator.state.running = False
+            orchestrator._notify()
+
+    task = asyncio.create_task(_compute_hashes())
+    orchestrator._task = task
+    return {"status": "started"}
+
+
 # ---------------------------------------------------------------------------
 # Geocoding
 # ---------------------------------------------------------------------------
@@ -1061,7 +1101,7 @@ async def geocode_search(q: str) -> List[Dict[str, Any]]:
                     "limit": 5,
                     "addressdetails": 1,
                 },
-                headers={"User-Agent": "Fotoxi/1.0"},
+                headers={"User-Agent": "Fotoxi/1.0", "Accept-Language": "fi,en"},
             )
             resp.raise_for_status()
             results = resp.json()

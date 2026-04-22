@@ -24,8 +24,9 @@ async def cmd_serve(args: argparse.Namespace) -> None:
 
     app = await create_app()
     port = args.port or 8001
-    print(f"Starting Fotoxi at http://localhost:{port}")
-    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
+    host = args.host or "0.0.0.0"
+    print(f"Starting Fotoxi at http://{host}:{port}")
+    config = uvicorn.Config(app, host=host, port=port, log_level="info")
     server = uvicorn.Server(config)
     await server.serve()
 
@@ -498,6 +499,31 @@ async def cmd_ai(args: argparse.Namespace) -> None:
     await engine.dispose()
 
 
+async def cmd_hash(args: argparse.Namespace) -> None:
+    """Compute SHA-256 file hashes for all images missing one."""
+    from backend.indexer.orchestrator import IndexerOrchestrator
+
+    engine, session_factory, config = await _get_session_and_config()
+
+    def on_progress(state):
+        processed = state["processed"]
+        total = state["total"]
+        errors = state["errors"]
+        speed = state.get("speed", 0)
+        current = state.get("current_file", "")
+        if total > 0:
+            pct = round(processed / total * 100)
+            spd = f" [{speed:.0f}/s]" if speed > 0 else ""
+            err = f" ({errors} errors)" if errors else ""
+            print(f"\r  {processed}/{total} ({pct}%){err}{spd} {current[:50]}    ", end="", flush=True)
+
+    orchestrator = IndexerOrchestrator(config, session_factory, on_progress=on_progress)
+    print("Computing file hashes (SHA-256)...")
+    await orchestrator.process_file_hashes()
+    print(f"\nDone! {orchestrator.state.processed} hashes computed, {orchestrator.state.errors} errors.")
+    await engine.dispose()
+
+
 def cmd_backup(args: argparse.Namespace) -> None:
     import shutil
     from datetime import datetime
@@ -536,6 +562,7 @@ def main():
     # serve
     serve_p = subparsers.add_parser("serve", help="Start web UI server")
     serve_p.add_argument("-p", "--port", type=int, default=8001, help="Port (default 8001)")
+    serve_p.add_argument("--host", default="0.0.0.0", help="Bind address (default 0.0.0.0 = all interfaces)")
 
     # add
     add_p = subparsers.add_parser("add", help="Add a source folder")
@@ -559,6 +586,9 @@ def main():
 
     # duplicates
     subparsers.add_parser("duplicates", help="Show duplicate groups")
+
+    # hash
+    subparsers.add_parser("hash", help="Compute SHA-256 file hashes for duplicate detection")
 
     # backup
     subparsers.add_parser("backup", help="Create database backup")
@@ -597,6 +627,8 @@ def main():
         asyncio.run(cmd_status(args))
     elif args.command == "duplicates":
         asyncio.run(cmd_duplicates(args))
+    elif args.command == "hash":
+        asyncio.run(cmd_hash(args))
     elif args.command == "backup":
         cmd_backup(args)
     elif args.command == "migrate":

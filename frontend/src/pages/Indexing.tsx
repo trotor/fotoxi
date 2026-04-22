@@ -6,6 +6,7 @@ import {
   startIndexer,
   stopIndexer,
   processOnly,
+  computeHashes,
   getSettings,
   updateSettings,
   getCloudFolders,
@@ -20,6 +21,7 @@ const PHASE_KEYS: Record<string, string> = {
   metadata: 'idx.phase.metadata',
   starting: 'idx.phase.starting',
   ai_analysis: 'idx.phase.ai_analysis',
+  hashing: 'idx.phase.hashing',
   geocoding: 'idx.phase.geocoding',
   grouping: 'idx.phase.grouping',
   complete: 'idx.phase.complete',
@@ -149,16 +151,28 @@ export default function Indexing() {
           </div>
           <div className="flex gap-2">
             {!status.running && (
-              <button
-                onClick={async () => {
-                  await processOnly()
-                  setStatus(prev => ({ ...prev, running: true, phase: 'metadata' }))
-                }}
-                className="px-4 py-2 rounded text-sm font-medium bg-blue-700 hover:bg-blue-600 text-white transition-colors"
-                title="Käsittele vain puuttuvat metatiedot ja AI (ei skannaa kansioita)"
-              >
-                {t('idx.process_missing')}
-              </button>
+              <>
+                <button
+                  onClick={async () => {
+                    await processOnly()
+                    setStatus(prev => ({ ...prev, running: true, phase: 'metadata' }))
+                  }}
+                  className="px-4 py-2 rounded text-sm font-medium bg-blue-700 hover:bg-blue-600 text-white transition-colors"
+                  title="Käsittele vain puuttuvat metatiedot ja AI (ei skannaa kansioita)"
+                >
+                  {t('idx.process_missing')}
+                </button>
+                <button
+                  onClick={async () => {
+                    await computeHashes()
+                    setStatus(prev => ({ ...prev, running: true, phase: 'hashing' }))
+                  }}
+                  className="px-4 py-2 rounded text-sm font-medium bg-purple-700 hover:bg-purple-600 text-white transition-colors"
+                  title="Laske SHA-256 tunnisteet tiedostoille"
+                >
+                  {t('idx.compute_hashes')}
+                </button>
+              </>
             )}
             <button
               onClick={handleStartStop}
@@ -287,6 +301,7 @@ export default function Indexing() {
                 <span>{t('idx.kept_label')}: <span className="text-blue-300">{db.kept}</span></span>
                 <span>{t('idx.ai_desc')}: <span className="text-green-300">{db.ai_done}</span>{db.ai_missing > 0 && <span className="text-yellow-400"> / {t('idx.missing_label')} {db.ai_missing}</span>}</span>
                 <span>{t('idx.videos_label')}: <span className="text-blue-300">{db.videos_indexed}</span>{db.videos_pending > 0 && <span className="text-yellow-400"> / {t('idx.pending_label')} {db.videos_pending}</span>}</span>
+                <span>#️⃣ Hash: <span className="text-purple-300">{db.hash_count}</span> / {db.total - db.missing - db.error}</span>
                 {db.gps_count > 0 && (
                   <span>📍 GPS: <span className="text-green-300">{db.geocoded_count}</span> / {db.gps_count}</span>
                 )}
