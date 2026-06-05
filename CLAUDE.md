@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Workflow
+
+Trunk-based development: commit directly to `main` and push. Do **not** create feature branches or open pull requests. Bump the version (`pyproject.toml`) and update `CHANGELOG.md` with every change.
+
 ## Environment
 
 Always use a Python virtual environment (venv). Activate before running any Python command:
