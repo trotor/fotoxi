@@ -13,6 +13,7 @@ export interface ImageData {
   exif_camera_model: string | null
   exif_gps_lat: number | null
   exif_gps_lon: number | null
+  gps_inherited: boolean
   location_name: string | null
   exif_focal_length: number | null
   exif_aperture: number | null
@@ -224,10 +225,11 @@ export interface DuplicatesResponse {
   limit: number
 }
 
-export async function getDuplicates(params?: { page?: number; limit?: number }): Promise<DuplicatesResponse> {
+export async function getDuplicates(params?: { page?: number; limit?: number; match_type?: string }): Promise<DuplicatesResponse> {
   const query = new URLSearchParams()
   if (params?.page != null) query.set('page', String(params.page))
   if (params?.limit != null) query.set('limit', String(params.limit))
+  if (params?.match_type) query.set('match_type', params.match_type)
   const res = await fetch(`${BASE}/duplicates?${query}`)
   if (!res.ok) throw new Error(`Duplicates fetch failed: ${res.status}`)
   return res.json()
@@ -280,6 +282,38 @@ export interface GeocodeSuggestion {
   radius_km: number
   type: string
   address: Record<string, string>
+}
+
+export interface MapCluster {
+  lat: number
+  lon: number
+  count: number
+  sample_id: number
+  location_name: string | null
+}
+
+export async function getMapClusters(params: {
+  zoom: number
+  south?: number
+  north?: number
+  west?: number
+  east?: number
+  date_from?: string
+  date_to?: string
+  include_inherited?: boolean
+}): Promise<MapCluster[]> {
+  const query = new URLSearchParams()
+  query.set('zoom', String(params.zoom))
+  if (params.south != null) query.set('south', String(params.south))
+  if (params.north != null) query.set('north', String(params.north))
+  if (params.west != null) query.set('west', String(params.west))
+  if (params.east != null) query.set('east', String(params.east))
+  if (params.date_from) query.set('date_from', params.date_from)
+  if (params.date_to) query.set('date_to', params.date_to)
+  if (params.include_inherited === false) query.set('include_inherited', 'false')
+  const res = await fetch(`${BASE}/map/clusters?${query}`)
+  if (!res.ok) throw new Error(`Map clusters failed: ${res.status}`)
+  return res.json()
 }
 
 export async function geocodeSearch(q: string): Promise<GeocodeSuggestion[]> {

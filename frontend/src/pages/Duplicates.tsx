@@ -18,7 +18,14 @@ function hammingDistance(a: string | null, b: string | null): number | null {
 
 function useMatchLabels() {
   const { t } = useI18n()
-  return { phash: t('dup.visual_copy'), burst: t('dup.burst'), 'phash+burst': t('dup.burst_visual') } as Record<string, string>
+  return {
+    exact: t('dup.exact_copy'),
+    phash: t('dup.visual_copy'),
+    burst: t('dup.burst'),
+    'exact+phash': t('dup.exact_visual'),
+    'phash+burst': t('dup.burst_visual'),
+    'exact+phash+burst': t('dup.exact_burst_visual'),
+  } as Record<string, string>
 }
 
 function folderOf(path: string | null | undefined): string {
@@ -82,14 +89,16 @@ export default function Duplicates() {
   const [dupPage, setDupPage] = useState(1)
   const [rejected, setRejected] = useState<Record<number, Set<number>>>({})
   const [groupIndex, setGroupIndex] = useState(0)
+  const [matchTypeFilter, setMatchTypeFilter] = useState<string>('')
 
   const { data: dupData, isLoading, isError } = useQuery({
-    queryKey: ['duplicates', dupPage],
-    queryFn: () => getDuplicates({ page: dupPage, limit: 20 }),
+    queryKey: ['duplicates', dupPage, matchTypeFilter],
+    queryFn: () => getDuplicates({ page: dupPage, limit: 20, match_type: matchTypeFilter || undefined }),
   })
 
   const groups = dupData?.groups ?? []
   const totalGroups = dupData?.total ?? 0
+  const matchTypeCounts: Record<string, number> = (dupData as any)?.match_type_counts ?? {}
 
   const resolveMutation = useMutation({
     mutationFn: async ({ groupId, keepIds, rejectIds }: { groupId: number; keepIds: number[]; rejectIds: number[] }) => {
@@ -259,8 +268,30 @@ export default function Duplicates() {
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto p-4">
-      {/* Actions */}
-      <div className="flex justify-end">{findButton}</div>
+      {/* Actions + filter */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-gray-500">{t('search.show')}:</span>
+        <button
+          onClick={() => { setMatchTypeFilter(''); setDupPage(1); setGroupIndex(0) }}
+          className={`text-xs px-2 py-1 rounded transition-colors ${
+            !matchTypeFilter ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+          }`}
+        >
+          {t('search.all')} ({Object.values(matchTypeCounts).reduce((a, b) => a + b, 0) || totalGroups})
+        </button>
+        {Object.entries(matchTypeCounts).sort(([,a], [,b]) => b - a).map(([type, count]) => (
+          <button
+            key={type}
+            onClick={() => { setMatchTypeFilter(type === matchTypeFilter ? '' : type); setDupPage(1); setGroupIndex(0) }}
+            className={`text-xs px-2 py-1 rounded transition-colors ${
+              matchTypeFilter === type ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            {MATCH_TYPE_LABELS[type] ?? type} ({count})
+          </button>
+        ))}
+        <div className="ml-auto">{findButton}</div>
+      </div>
       {/* Progress */}
       <div className="flex justify-between items-center text-sm text-gray-400">
         <span>{t('dup.group')} {(dupPage - 1) * 20 + groupIndex + 1} / {totalGroups}</span>

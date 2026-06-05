@@ -7,6 +7,7 @@ import Duplicates from './pages/Duplicates'
 import Indexing from './pages/Indexing'
 import Settings from './pages/Settings'
 import Stats from './pages/Stats'
+import MapPage from './pages/Map'
 
 const CURRENT_VERSION = '0.4.1'
 const VERSION_CHECK_URL = 'https://raw.githubusercontent.com/trotor/fotoxi/main/version.json'
@@ -124,6 +125,7 @@ export default function App() {
                 <span className="text-gray-600 text-xs ml-1">v{CURRENT_VERSION}</span>
               </div>
               <NavLink to="/search" className={navLinkClass}>{t('nav.search')}</NavLink>
+              <NavLink to="/map" className={navLinkClass}>{t('nav.map')}</NavLink>
               <NavLink to="/duplicates" className={navLinkClass}>{t('nav.duplicates')}</NavLink>
               <NavLink to="/indexing" className={navLinkClass}>{t('nav.indexing')}</NavLink>
               <NavLink to="/stats" className={navLinkClass}>{t('nav.stats')}</NavLink>
@@ -142,6 +144,9 @@ export default function App() {
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>
+          <Routes>
+            <Route path="/map" element={<MapPage />} />
+          </Routes>
         </div>
       </BrowserRouter>
     </QueryClientProvider>

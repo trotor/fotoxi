@@ -48,6 +48,7 @@ class Image(Base):
     exif_camera_model: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     exif_gps_lat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     exif_gps_lon: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    gps_inherited: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     location_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     exif_focal_length: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     exif_aperture: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

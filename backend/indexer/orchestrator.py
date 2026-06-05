@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from backend.config import Config
 from backend.db.models import Image
 from backend.indexer.analyzer import analyze_image
-from backend.indexer.eviction import evict_file, is_cloud_path
+from backend.indexer.eviction import evict_file, is_cloud_path, is_icloud_path
 from backend.indexer.exif import extract_exif
 from backend.indexer.geocoder import batch_reverse_geocode
 from backend.indexer.hasher import compute_hashes
@@ -316,11 +316,6 @@ class IndexerOrchestrator:
                         img.updated_at = _now
                         await session.commit()
 
-                    # Evict cloud file after processing
-                    if is_cloud:
-                        await evict_file(file_path)
-                        self.state.log(f"↑ {image.file_name} evicted")
-
                     self.state.processed += 1
                     self.state.log(f"✓ {image.file_name}")
 
@@ -550,6 +545,100 @@ class IndexerOrchestrator:
         logger.info("process_geocoding: geocoded %d images, computed %d file hashes", saved_count, hashed_count)
 
     # ------------------------------------------------------------------
+    # Phase 2c: GPS inheritance
+    # ------------------------------------------------------------------
+
+    async def process_gps_inheritance(self) -> None:
+        """Inherit GPS coordinates from nearby photos (same camera, <5min apart)."""
+        self.state.phase = "gps_inherit"
+        self.state.processed = 0
+        self.state.errors = 0
+        self._notify()
+
+        # Find images without GPS but with date and camera
+        async with self.session_factory() as session:
+            result = await session.execute(
+                select(Image).where(
+                    Image.exif_gps_lat.is_(None),
+                    Image.exif_date.is_not(None),
+                    Image.exif_camera_model.is_not(None),
+                    Image.status.notin_(["missing", "error"]),
+                )
+            )
+            candidates = result.scalars().all()
+
+            if not candidates:
+                logger.info("process_gps_inheritance: no candidates")
+                return
+
+            # Load all GPS images for matching
+            gps_result = await session.execute(
+                select(Image.id, Image.exif_gps_lat, Image.exif_gps_lon,
+                       Image.exif_date, Image.exif_camera_model, Image.location_name).where(
+                    Image.exif_gps_lat.is_not(None),
+                    Image.gps_inherited == False,
+                    Image.status.notin_(["missing", "error"]),
+                )
+            )
+            gps_images = gps_result.all()
+
+        self.state.total = len(candidates)
+        self._notify()
+
+        # Index GPS images by camera for fast lookup
+        from collections import defaultdict
+        gps_by_camera: dict[str, list] = defaultdict(list)
+        for row in gps_images:
+            if row.exif_camera_model and row.exif_date:
+                gps_by_camera[row.exif_camera_model].append(row)
+
+        # Sort each camera group by date for binary search
+        for cam_list in gps_by_camera.values():
+            cam_list.sort(key=lambda r: r.exif_date)
+
+        inherited = 0
+        MAX_SECONDS = 300  # 5 minutes
+
+        for img in candidates:
+            if self._stop_event.is_set():
+                break
+
+            cam_images = gps_by_camera.get(img.exif_camera_model, [])
+            if not cam_images:
+                continue
+
+            # Find closest GPS image by time
+            best = None
+            best_delta = MAX_SECONDS + 1
+            for gps_img in cam_images:
+                delta = abs((img.exif_date - gps_img.exif_date).total_seconds())
+                if delta < best_delta:
+                    best_delta = delta
+                    best = gps_img
+                if delta > MAX_SECONDS and gps_img.exif_date > img.exif_date:
+                    break  # sorted, no point checking further
+
+            if best and best_delta <= MAX_SECONDS:
+                async with self.session_factory() as session:
+                    result = await session.execute(
+                        select(Image).where(Image.id == img.id)
+                    )
+                    db_img = result.scalar_one_or_none()
+                    if db_img:
+                        db_img.exif_gps_lat = best.exif_gps_lat
+                        db_img.exif_gps_lon = best.exif_gps_lon
+                        db_img.gps_inherited = True
+                        db_img.location_name = best.location_name
+                        await session.commit()
+                        inherited += 1
+
+            self.state.processed += 1
+            self._notify()
+
+        self.state.log(f"📍 Inherited GPS for {inherited} images")
+        logger.info("process_gps_inheritance: inherited GPS for %d images", inherited)
+
+    # ------------------------------------------------------------------
     # Phase 3: AI analysis
     # ------------------------------------------------------------------
 
@@ -697,10 +786,6 @@ class IndexerOrchestrator:
 
                         await session.commit()
 
-                    # Evict cloud files after indexing
-                    if is_cloud_path(file_path):
-                        await evict_file(file_path)
-
                     self.state.ai_processed += 1
 
                 except Exception as exc:
@@ -844,6 +929,55 @@ class IndexerOrchestrator:
         self._notify()
 
     # ------------------------------------------------------------------
+    # Evict cloud files
+    # ------------------------------------------------------------------
+
+    async def _evict_cloud_files(self) -> None:
+        """Evict cloud files that were downloaded during processing.
+
+        Runs after all phases are complete to ensure no phase needs
+        the original file anymore.
+        """
+        async with self.session_factory() as session:
+            result = await session.execute(
+                select(Image.file_path).where(
+                    Image.source_type == "cloud",
+                    Image.status.notin_(["missing", "error"]),
+                )
+            )
+            cloud_paths = [row[0] for row in result.all()]
+
+        if not cloud_paths:
+            return
+
+        evicted = 0
+        skipped = 0
+        for fp in cloud_paths:
+            if self._stop_event.is_set():
+                break
+            path = Path(fp)
+            if not path.exists():
+                continue
+            if is_icloud_path(path):
+                if await evict_file(path):
+                    evicted += 1
+            elif is_cloud_path(path):
+                # Third-party providers (OneDrive/Google Drive/Dropbox) cannot
+                # be evicted with brctl; count them so we can log once instead
+                # of emitting a warning per file.
+                skipped += 1
+
+        if evicted:
+            self.state.log(f"↑ Evicted {evicted} cloud files")
+            logger.info("evict: evicted %d cloud files", evicted)
+        if skipped:
+            logger.info(
+                "evict: skipped %d non-iCloud cloud files (brctl cannot evict "
+                "OneDrive/Google Drive/Dropbox)",
+                skipped,
+            )
+
+    # ------------------------------------------------------------------
     # Top-level orchestration
     # ------------------------------------------------------------------
 
@@ -904,6 +1038,14 @@ class IndexerOrchestrator:
             if self._stop_event.is_set():
                 self.state.phase = "idle"
                 return
+
+            await self.process_gps_inheritance()
+            if self._stop_event.is_set():
+                self.state.phase = "idle"
+                return
+
+            # Evict cloud files after all processing is done
+            await self._evict_cloud_files()
 
             self.state.phase = "complete"
         except Exception as exc:

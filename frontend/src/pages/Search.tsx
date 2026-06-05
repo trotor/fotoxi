@@ -511,6 +511,15 @@ export default function Search() {
       setExcludeStatuses(st ? new Set() : new Set(['rejected', 'pending']))
       setActiveFilters(prev => ({ ...prev, dateFrom: df, dateTo: dt, camera: cam, status: st, exclude: excl }))
     }
+    // Location from URL (e.g. from Map page)
+    const lat = searchParams.get('lat')
+    const lon = searchParams.get('lon')
+    const radius = searchParams.get('radius')
+    if (lat && lon) {
+      setLocationNear({ lat: parseFloat(lat), lon: parseFloat(lon) })
+      if (radius) setLocationRadius(parseFloat(radius))
+      setLocationLabel(null)
+    }
   }, [searchParams])
   useEffect(() => { localStorage.setItem('fotoxi_sortBy', sortBy) }, [sortBy])
   useEffect(() => { localStorage.setItem('fotoxi_sortOrder', sortOrder) }, [sortOrder])

@@ -49,6 +49,7 @@ def _image_to_dict(img: Image) -> Dict[str, Any]:
         "exif_camera_model": img.exif_camera_model,
         "exif_gps_lat": img.exif_gps_lat,
         "exif_gps_lon": img.exif_gps_lon,
+        "gps_inherited": img.gps_inherited,
         "location_name": img.location_name,
         "exif_focal_length": img.exif_focal_length,
         "exif_aperture": img.exif_aperture,
@@ -706,6 +707,7 @@ async def refresh_image_status(request: Request, image_id: int) -> Dict[str, Any
 async def list_duplicates(
     request: Request,
     status: Optional[str] = None,
+    match_type: Optional[str] = None,
     page: int = 1,
     limit: int = 20,
 ) -> Dict[str, Any]:
@@ -726,6 +728,10 @@ async def list_duplicates(
             sa_select(DuplicateGroup.id)
             .where(DuplicateGroup.id.notin_(sa_select(resolved_subq.c.group_id)))
         )
+
+        # Filter by match_type if specified
+        if match_type:
+            unresolved_q = unresolved_q.where(DuplicateGroup.match_type.contains(match_type))
 
         # Count total
         count_result = await session.execute(
@@ -786,7 +792,16 @@ async def list_duplicates(
             "members": members,
         })
 
-    return {"groups": result, "total": total, "page": page, "limit": limit}
+        # Count by match_type (across all unresolved, not just this page)
+        type_count_q = (
+            sa_select(DuplicateGroup.match_type, func.count(DuplicateGroup.id))
+            .where(DuplicateGroup.id.notin_(sa_select(resolved_subq.c.group_id)))
+            .group_by(DuplicateGroup.match_type)
+        )
+        type_counts_result = await session.execute(type_count_q)
+        match_type_counts = dict(type_counts_result.all())
+
+    return {"groups": result, "total": total, "page": page, "limit": limit, "match_type_counts": match_type_counts}
 
 
 @router.get("/duplicates/{group_id}")
@@ -994,6 +1009,10 @@ async def indexer_process(request: Request) -> Dict[str, Any]:
                 await orchestrator.process_ai()
             if not orchestrator._stop_event.is_set():
                 await orchestrator.process_geocoding()
+            if not orchestrator._stop_event.is_set():
+                await orchestrator.process_gps_inheritance()
+            if not orchestrator._stop_event.is_set():
+                await orchestrator._evict_cloud_files()
             orchestrator.state.phase = "complete"
         except Exception as exc:
             import logging
@@ -1073,6 +1092,101 @@ async def indexer_compute_hashes(request: Request) -> Dict[str, Any]:
     task = asyncio.create_task(_compute_hashes())
     orchestrator._task = task
     return {"status": "started"}
+
+
+# ---------------------------------------------------------------------------
+# Map clusters
+# ---------------------------------------------------------------------------
+
+
+@router.get("/map/clusters")
+async def map_clusters(
+    request: Request,
+    zoom: int = 10,
+    south: Optional[float] = None,
+    north: Optional[float] = None,
+    west: Optional[float] = None,
+    east: Optional[float] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    include_inherited: bool = True,
+) -> List[Dict[str, Any]]:
+    """Return clustered image locations for the map view.
+
+    Cluster precision depends on zoom level:
+    - zoom 1-7:  0 decimals (~111km)
+    - zoom 8-10: 1 decimal (~11km)
+    - zoom 11-13: 2 decimals (~1.1km)
+    - zoom 14-16: 3 decimals (~110m)
+    - zoom 17+: 4 decimals (~11m) — individual images
+    """
+    from sqlalchemy import func as sqlfunc, text, literal_column
+
+    if zoom <= 7:
+        precision = 0
+    elif zoom <= 10:
+        precision = 1
+    elif zoom <= 13:
+        precision = 2
+    elif zoom <= 16:
+        precision = 3
+    else:
+        precision = 4
+
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        # Round coordinates for clustering
+        rlat = sqlfunc.round(Image.exif_gps_lat, precision)
+        rlon = sqlfunc.round(Image.exif_gps_lon, precision)
+
+        stmt = (
+            select(
+                sqlfunc.avg(Image.exif_gps_lat).label("lat"),
+                sqlfunc.avg(Image.exif_gps_lon).label("lon"),
+                sqlfunc.count(Image.id).label("count"),
+                sqlfunc.min(Image.id).label("sample_id"),
+            )
+            .where(
+                Image.exif_gps_lat.is_not(None),
+                Image.status.notin_(["missing", "error", "rejected"]),
+            )
+            .group_by(rlat, rlon)
+        )
+
+        if not include_inherited:
+            stmt = stmt.where(Image.gps_inherited == False)
+
+        if south is not None and north is not None:
+            stmt = stmt.where(Image.exif_gps_lat >= south, Image.exif_gps_lat <= north)
+        if west is not None and east is not None:
+            stmt = stmt.where(Image.exif_gps_lon >= west, Image.exif_gps_lon <= east)
+        if date_from:
+            stmt = stmt.where(Image.exif_date >= date_from)
+        if date_to:
+            stmt = stmt.where(Image.exif_date <= date_to + "T23:59:59")
+
+        result = await session.execute(stmt)
+        rows = result.all()
+
+        # Get location names for clusters (from sample image)
+        sample_ids = [r.sample_id for r in rows]
+        loc_names: dict[int, str] = {}
+        if sample_ids:
+            loc_result = await session.execute(
+                select(Image.id, Image.location_name).where(Image.id.in_(sample_ids))
+            )
+            loc_names = {r.id: r.location_name for r in loc_result.all() if r.location_name}
+
+    return [
+        {
+            "lat": float(r.lat),
+            "lon": float(r.lon),
+            "count": r.count,
+            "sample_id": r.sample_id,
+            "location_name": loc_names.get(r.sample_id),
+        }
+        for r in rows
+    ]
 
 
 # ---------------------------------------------------------------------------

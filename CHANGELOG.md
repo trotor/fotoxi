@@ -2,6 +2,12 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.2] - 2026-06-01
+
+### Fixed
+- **Cloud eviction log spam** — `brctl evict` only manages iCloud Drive (Apple CloudDocs); it was being run against every third-party cloud file (OneDrive/Google Drive/Dropbox) and failing every time, emitting one warning per file (20k+ warnings per index run). Eviction now runs `brctl` only for iCloud Drive paths and skips other providers with a single summary log line.
+- **Misleading eviction count** — `_evict_cloud_files` counted every attempt as evicted; it now counts only files actually evicted via brctl.
+
 ## [0.4.1] - 2026-03-24
 
 ### Security
