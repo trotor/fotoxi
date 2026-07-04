@@ -155,6 +155,7 @@
   "dup.mode_keep": "Sailytettava",
   "dup.mode_reject": "Hylattavat",
   "dup.select_recommended": "Valitse suositeltu",
+  "dup.mode_hint": "(klikkaa kuvia valitaksesi manuaalisesti)",
   "dup.kept_badge": "sailytetaan",
   "idx.scanning_anim": "Skannataan",
   "idx.active": "Aktiivisia",

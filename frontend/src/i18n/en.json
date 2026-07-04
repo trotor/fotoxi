@@ -155,6 +155,7 @@
   "dup.mode_keep": "Keeper",
   "dup.mode_reject": "Rejects",
   "dup.select_recommended": "Select recommended",
+  "dup.mode_hint": "(click images to select manually)",
   "dup.kept_badge": "kept",
   "idx.scanning_anim": "Scanning",
   "idx.active": "Active",

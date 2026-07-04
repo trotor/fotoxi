@@ -475,6 +475,13 @@ export default function Duplicates() {
       {/* Other actions */}
       <div className="flex flex-wrap gap-2">
         <button
+          onClick={handleAutoSelect}
+          disabled={resolveMutation.isPending}
+          className="bg-green-900/40 hover:bg-green-800/60 disabled:opacity-40 text-green-300 text-xs px-3 py-1.5 rounded border border-green-700 transition-colors font-medium"
+        >
+          ⌾ {t('dup.select_recommended')}
+        </button>
+        <button
           onClick={handleKeepAll}
           disabled={resolveMutation.isPending}
           className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-300 text-xs px-3 py-1.5 rounded border border-gray-600 transition-colors"
@@ -527,12 +534,7 @@ export default function Duplicates() {
             {t('dup.mode_reject')}
           </button>
         </div>
-        <button
-          onClick={handleAutoSelect}
-          className="bg-gray-800 hover:bg-gray-700 text-green-400 text-xs px-3 py-1.5 rounded border border-green-900 transition-colors"
-        >
-          {t('dup.select_recommended')}
-        </button>
+        <span className="text-xs text-gray-600">{t('dup.mode_hint')}</span>
       </div>
 
       {/* Image grid */}

@@ -2,6 +2,11 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.4] - 2026-07-04
+
+### Changed
+- **Duplicates: "Select recommended" is now a prominent action** — promoted from a tucked-away link next to the click-mode toggle to a highlighted button at the front of the primary action row. It preselects the recommended keeper for review (green ✓) without auto-confirming, so you can adjust before hitting Confirm.
+
 ## [0.4.3] - 2026-07-04
 
 ### Added
