@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from backend.db.queries import (
+    bulk_resolve_duplicates,
     get_duplicate_groups,
     resolve_duplicate_group,
     search_images,
@@ -847,6 +848,30 @@ async def get_duplicate_group(request: Request, group_id: int) -> Dict[str, Any]
 class ResolveBody(BaseModel):
     keep: List[int]
     reject: List[int]
+
+
+class BulkResolveBody(BaseModel):
+    match_types: Optional[List[str]] = None
+    exclude_burst: bool = True
+    dry_run: bool = False
+
+
+@router.post("/duplicates/bulk-resolve")
+async def bulk_resolve(request: Request, body: BulkResolveBody) -> Dict[str, Any]:
+    """Auto-resolve copy-type duplicate groups (keep best, reject the rest).
+
+    Bursts are excluded by default. Use ``dry_run: true`` to preview the impact
+    (group/image counts and reclaimable bytes) before applying.
+    """
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        summary = await bulk_resolve_duplicates(
+            session,
+            exclude_burst=body.exclude_burst,
+            match_types=body.match_types,
+            dry_run=body.dry_run,
+        )
+    return summary
 
 
 @router.post("/duplicates/{group_id}/resolve")

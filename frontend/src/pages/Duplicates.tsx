@@ -1,8 +1,16 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { DuplicateGroup, DuplicateMember } from '../api'
-import { getDuplicates, findDuplicates, thumbUrl } from '../api'
+import type { DuplicateGroup, DuplicateMember, BulkResolveSummary } from '../api'
+import { getDuplicates, findDuplicates, bulkResolveDuplicates, thumbUrl } from '../api'
 import { useI18n } from '../i18n/useTranslation'
+
+/** Human-readable byte size */
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GB`
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(0)} MB`
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${bytes} B`
+}
 
 /** Hamming distance between two hex hash strings */
 function hammingDistance(a: string | null, b: string | null): number | null {
@@ -90,6 +98,17 @@ export default function Duplicates() {
   const [rejected, setRejected] = useState<Record<number, Set<number>>>({})
   const [groupIndex, setGroupIndex] = useState(0)
   const [matchTypeFilter, setMatchTypeFilter] = useState<string>('')
+  const [cleanupPreview, setCleanupPreview] = useState<BulkResolveSummary | null>(null)
+  const [cleanupBusy, setCleanupBusy] = useState(false)
+  const [cleanupDone, setCleanupDone] = useState<string | null>(null)
+  const [selectMode, setSelectMode] = useState<'keep' | 'reject'>(
+    () => (localStorage.getItem('fotoxi_dupSelectMode') === 'reject' ? 'reject' : 'keep')
+  )
+
+  function changeSelectMode(mode: 'keep' | 'reject') {
+    setSelectMode(mode)
+    localStorage.setItem('fotoxi_dupSelectMode', mode)
+  }
 
   const { data: dupData, isLoading, isError } = useQuery({
     queryKey: ['duplicates', dupPage, matchTypeFilter],
@@ -115,6 +134,7 @@ export default function Duplicates() {
   })
 
   const group: DuplicateGroup | null = groups[groupIndex] ?? null
+  const isBurst = !!group && group.match_type.includes('burst')
   const members = group?.members ?? []
   const groupRejected = group ? (rejected[group.id] ?? new Set<number>()) : new Set<number>()
   const keptCount = members.length - groupRejected.size
@@ -150,6 +170,41 @@ export default function Duplicates() {
     }
   }
 
+  async function handleCleanupPreview() {
+    setCleanupBusy(true)
+    setCleanupDone(null)
+    try {
+      const summary = await bulkResolveDuplicates({ dry_run: true })
+      setCleanupPreview(summary)
+    } catch {
+      /* ignore */
+    } finally {
+      setCleanupBusy(false)
+    }
+  }
+
+  async function handleCleanupApply() {
+    setCleanupBusy(true)
+    try {
+      const summary = await bulkResolveDuplicates({ dry_run: false })
+      setCleanupPreview(null)
+      setCleanupDone(
+        `${t('dup.cleanup_done')}: ${summary.rejected} ${t('dup.images')} · ${formatBytes(summary.reclaimable_bytes)}`
+      )
+      setGroupIndex(0)
+      setDupPage(1)
+      queryClient.invalidateQueries({ queryKey: ['duplicates'] })
+    } catch {
+      /* ignore */
+    } finally {
+      setCleanupBusy(false)
+    }
+  }
+
+  function handleCleanupCancel() {
+    setCleanupPreview(null)
+  }
+
   const findButton = (
     <button
       onClick={handleFindDuplicates}
@@ -176,6 +231,28 @@ export default function Duplicates() {
       }
       return { ...prev, [group.id]: current }
     })
+  }
+
+  /** Keep-mode: clicking picks the single keeper (everything else rejected). */
+  function selectKeeper(imageId: number) {
+    if (!group) return
+    setRejected(prev => {
+      const current = prev[group.id] ?? new Set<number>()
+      const keptIds = members.map(m => m.image_id).filter(id => !current.has(id))
+      // Clicking the current sole keeper clears the selection.
+      if (keptIds.length === 1 && keptIds[0] === imageId) {
+        const next = { ...prev }
+        delete next[group.id]
+        return next
+      }
+      const others = new Set(members.map(m => m.image_id).filter(id => id !== imageId))
+      return { ...prev, [group.id]: others }
+    })
+  }
+
+  function handleImageClick(imageId: number) {
+    if (selectMode === 'keep') selectKeeper(imageId)
+    else toggleReject(imageId)
   }
 
   /** Resolve with given keep/reject and move to next */
@@ -292,6 +369,51 @@ export default function Duplicates() {
         ))}
         <div className="ml-auto">{findButton}</div>
       </div>
+
+      {/* Bulk cleanup of copy-type duplicates (keep best, reject rest) */}
+      <div className="bg-gray-900/60 border border-gray-800 rounded-lg p-3">
+        {cleanupDone ? (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-green-400">✓ {cleanupDone}</span>
+            <button onClick={() => setCleanupDone(null)} className="text-xs text-gray-500 hover:text-gray-300">✕</button>
+          </div>
+        ) : cleanupPreview ? (
+          cleanupPreview.groups === 0 ? (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-400">{t('dup.cleanup_none')}</span>
+              <button onClick={handleCleanupCancel} className="text-xs text-gray-500 hover:text-gray-300">{t('dup.cleanup_cancel')}</button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm text-gray-200">
+                {t('dup.cleanup_reject')} <span className="text-red-400 font-medium">{cleanupPreview.rejected}</span> {t('dup.images')}
+                {' · '}<span className="text-gray-300">{cleanupPreview.groups}</span> {t('dup.cleanup_groups')}
+                {' · '}{t('dup.cleanup_frees')} <span className="text-green-400 font-medium">{formatBytes(cleanupPreview.reclaimable_bytes)}</span>
+              </span>
+              <button
+                onClick={handleCleanupApply}
+                disabled={cleanupBusy}
+                className="bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-xs px-3 py-1.5 rounded transition-colors font-medium"
+              >
+                {cleanupBusy ? t('common.saving') : t('dup.cleanup_apply')}
+              </button>
+              <button onClick={handleCleanupCancel} disabled={cleanupBusy} className="text-xs text-gray-500 hover:text-gray-300">{t('dup.cleanup_cancel')}</button>
+            </div>
+          )
+        ) : (
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={handleCleanupPreview}
+              disabled={cleanupBusy}
+              className="bg-blue-800 hover:bg-blue-700 disabled:opacity-40 text-white text-xs px-3 py-1.5 rounded transition-colors font-medium"
+            >
+              🧹 {cleanupBusy ? t('dup.cleanup_checking') : t('dup.cleanup_copies')}
+            </button>
+            <span className="text-xs text-gray-500">{t('dup.cleanup_hint')}</span>
+          </div>
+        )}
+      </div>
+
       {/* Progress */}
       <div className="flex justify-between items-center text-sm text-gray-400">
         <span>{t('dup.group')} {(dupPage - 1) * 20 + groupIndex + 1} / {totalGroups}</span>
@@ -317,16 +439,38 @@ export default function Duplicates() {
         })()}
       </div>
 
-      {/* Default action - prominent */}
-      <button
-        onClick={handleAutoConfirm}
-        disabled={resolveMutation.isPending}
-        className="w-full bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-sm px-4 py-3 rounded-lg transition-colors font-medium"
-      >
-        {bestImg
-          ? `${t('dup.keep_recommended')} (${bestImg.file_name.slice(0, 30)}${bestImg.file_name.length > 30 ? '...' : ''} · ${(bestImg.file_size / 1024 / 1024).toFixed(1)} MB)`
-          : t('dup.keep_recommended_full')}
-      </button>
+      {/* Default action - prominent. Bursts default to 'keep all' (never auto-reject frames). */}
+      {isBurst ? (
+        <div className="space-y-2">
+          <button
+            onClick={handleKeepAll}
+            disabled={resolveMutation.isPending}
+            className="w-full bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-sm px-4 py-3 rounded-lg transition-colors font-medium"
+          >
+            {t('dup.burst_keep_all')} ({members.length})
+          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-xs text-amber-400/80">{t('dup.burst_note')}</p>
+            <button
+              onClick={handleAutoConfirm}
+              disabled={resolveMutation.isPending}
+              className="text-xs text-gray-400 hover:text-gray-200 underline disabled:opacity-40"
+            >
+              {t('dup.reduce_to_best')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={handleAutoConfirm}
+          disabled={resolveMutation.isPending}
+          className="w-full bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-sm px-4 py-3 rounded-lg transition-colors font-medium"
+        >
+          {bestImg
+            ? `${t('dup.keep_recommended')} (${bestImg.file_name.slice(0, 30)}${bestImg.file_name.length > 30 ? '...' : ''} · ${(bestImg.file_size / 1024 / 1024).toFixed(1)} MB)`
+            : t('dup.keep_recommended_full')}
+        </button>
+      )}
 
       {/* Other actions */}
       <div className="flex flex-wrap gap-2">
@@ -362,16 +506,32 @@ export default function Duplicates() {
         })}
       </div>
 
-      {/* Manual mode hint */}
-      <div className="flex items-center gap-2">
-        <p className="text-xs text-gray-600">
-          Tai valitse manuaalisesti klikkaamalla kuvia:
-        </p>
+      {/* Manual selection: click-mode toggle + preselect the recommended keeper */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-gray-600">{t('dup.mode_label')}</span>
+        <div className="inline-flex rounded overflow-hidden border border-gray-700 text-xs">
+          <button
+            onClick={() => changeSelectMode('keep')}
+            className={`px-2 py-1 transition-colors ${
+              selectMode === 'keep' ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            {t('dup.mode_keep')}
+          </button>
+          <button
+            onClick={() => changeSelectMode('reject')}
+            className={`px-2 py-1 transition-colors ${
+              selectMode === 'reject' ? 'bg-blue-700 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            {t('dup.mode_reject')}
+          </button>
+        </div>
         <button
           onClick={handleAutoSelect}
-          className="text-xs text-blue-400 hover:text-blue-300"
+          className="bg-gray-800 hover:bg-gray-700 text-green-400 text-xs px-3 py-1.5 rounded border border-green-900 transition-colors"
         >
-          Esivalitse suurin
+          {t('dup.select_recommended')}
         </button>
       </div>
 
@@ -382,15 +542,18 @@ export default function Duplicates() {
           if (!img) return null
           const isRejected = groupRejected.has(m.image_id)
           const isSuggested = m.image_id === suggestedBestId
+          const isKept = groupRejected.size > 0 && !isRejected
           const folder = shortFolder(folderOf(img.file_path))
           const isDerivative = (img.file_path || '').includes('/derivatives/') || (img.file_path || '').includes('/resources/')
           return (
             <div
               key={m.image_id}
-              onClick={() => toggleReject(m.image_id)}
+              onClick={() => handleImageClick(m.image_id)}
               className={`relative rounded-lg overflow-hidden cursor-pointer transition-all border-2 ${
                 isRejected
                   ? 'border-red-600 opacity-40 scale-95'
+                  : isKept
+                  ? 'border-green-500 ring-1 ring-green-500'
                   : isSuggested
                   ? 'border-green-500 hover:border-green-400'
                   : 'border-gray-700 hover:border-blue-500'
@@ -410,6 +573,11 @@ export default function Duplicates() {
               {isSuggested && !isRejected && (
                 <div className="absolute top-1 right-1 bg-green-600 text-white text-xs px-1.5 py-0.5 rounded">
                   {bestReason(m, members)}
+                </div>
+              )}
+              {isKept && !isSuggested && (
+                <div className="absolute top-1 right-1 bg-green-600 text-white text-xs px-1.5 py-0.5 rounded">
+                  ✓ {t('dup.kept_badge')}
                 </div>
               )}
               {isDerivative && !isRejected && (

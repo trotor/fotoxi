@@ -2,6 +2,18 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.3] - 2026-07-04
+
+### Added
+- **Bulk "Clean up copies"** (#27) — one action resolves all exact/visual duplicate copy groups at once (keeps the best per group via the same scoring the UI recommends, rejects the rest). A dry-run preview first shows how many images and groups are affected and **how much space is reclaimed** before anything is applied. New endpoint `POST /api/duplicates/bulk-resolve` (`match_types`, `exclude_burst`, `dry_run`) backed by `backend/grouping/scoring.py` and `bulk_resolve_duplicates()`.
+- **Duplicate selection modes** — a "Click selects: Keeper / Rejects" toggle on the Duplicates page (persisted). In keeper mode a click marks the single image to keep (green ✓) and rejects the rest; a proper **"Select recommended"** button preselects the recommended keeper for review instead of auto-confirming.
+
+### Changed
+- **Bursts are no longer treated as duplicates to prune** (#28) — for burst groups the default action is now **"Keep all"** (never auto-rejects frames); reducing to the single best is an explicit secondary action. Bursts are excluded from bulk copy cleanup.
+
+### Fixed
+- **Version display drift** — `pyproject.toml`, `frontend` `CURRENT_VERSION` and `version.json` were out of sync (0.4.2 vs 0.4.1); realigned to 0.4.3. The systemic single-source-of-truth fix is tracked in #44.
+
 ## [0.4.2] - 2026-06-01
 
 ### Fixed

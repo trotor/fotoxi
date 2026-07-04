@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.db.models import DuplicateGroup, DuplicateGroupMember, Image
 from backend.db.queries import (
+    bulk_resolve_duplicates,
     get_duplicate_groups,
     resolve_duplicate_group,
     search_images,
@@ -336,3 +337,167 @@ async def test_resolve_duplicate_group(session: AsyncSession) -> None:
 
     assert choices[keep_img.id] == "keep"
     assert choices[reject_img.id] == "reject"
+
+
+# ---------------------------------------------------------------------------
+# bulk_resolve_duplicates tests
+# ---------------------------------------------------------------------------
+
+
+async def _make_varied_group(
+    session: AsyncSession,
+    *,
+    match_type: str,
+    specs: list[dict],
+    user_choices: list[str | None] | None = None,
+) -> tuple[DuplicateGroup, list[Image]]:
+    """Create a DuplicateGroup whose members differ in resolution/size/path."""
+    images: list[Image] = []
+    for i, s in enumerate(specs):
+        img = Image(
+            file_path=s.get("file_path", f"/photos/{match_type}_{i}.jpg"),
+            file_name=f"{match_type}_{i}.jpg",
+            file_size=s.get("file_size", 100),
+            file_mtime=float(1700000000 + i),
+            width=s.get("width"),
+            height=s.get("height"),
+            status=s.get("status", "indexed"),
+        )
+        session.add(img)
+        images.append(img)
+    await session.flush()
+
+    group = DuplicateGroup(match_type=match_type)
+    session.add(group)
+    await session.flush()
+
+    choices = user_choices or [None] * len(specs)
+    for idx, (img, choice) in enumerate(zip(images, choices)):
+        session.add(
+            DuplicateGroupMember(
+                group_id=group.id,
+                image_id=img.id,
+                is_best=(idx == 0),
+                user_choice=choice,
+            )
+        )
+    await session.commit()
+    return group, images
+
+
+async def test_bulk_resolve_keeps_best_and_rejects_rest(session: AsyncSession) -> None:
+    """A copy group is resolved: highest-resolution image kept, the rest rejected."""
+    group, images = await _make_varied_group(
+        session,
+        match_type="exact",
+        specs=[
+            {"width": 1000, "height": 1000, "file_size": 100},
+            {"width": 2000, "height": 2000, "file_size": 100},  # best (resolution)
+        ],
+    )
+    small, big = images
+
+    summary = await bulk_resolve_duplicates(session)
+
+    assert summary["groups"] == 1
+    assert summary["kept"] == 1
+    assert summary["rejected"] == 1
+    assert summary["applied"] is True
+
+    await session.refresh(small)
+    await session.refresh(big)
+    assert big.status == "kept"
+    assert small.status == "rejected"
+
+
+async def test_bulk_resolve_skips_burst_by_default(session: AsyncSession) -> None:
+    """Burst groups are never auto-resolved by default (exclude_burst=True)."""
+    _group, images = await _make_varied_group(
+        session,
+        match_type="burst",
+        specs=[
+            {"width": 1000, "height": 1000},
+            {"width": 1000, "height": 1000},
+        ],
+    )
+
+    summary = await bulk_resolve_duplicates(session)
+
+    assert summary["groups"] == 0
+    for img in images:
+        await session.refresh(img)
+        assert img.status == "indexed"
+
+
+async def test_bulk_resolve_dry_run_reports_without_applying(session: AsyncSession) -> None:
+    """dry_run reports the summary but changes no statuses or choices."""
+    _group, images = await _make_varied_group(
+        session,
+        match_type="phash",
+        specs=[
+            {"width": 1000, "height": 1000, "file_size": 100},
+            {"width": 2000, "height": 2000, "file_size": 100},
+        ],
+    )
+
+    summary = await bulk_resolve_duplicates(session, dry_run=True)
+
+    assert summary["groups"] == 1
+    assert summary["applied"] is False
+    for img in images:
+        await session.refresh(img)
+        assert img.status == "indexed"
+
+
+async def test_bulk_resolve_reports_reclaimable_bytes(session: AsyncSession) -> None:
+    """reclaimable_bytes sums the file sizes of images that would be rejected."""
+    await _make_varied_group(
+        session,
+        match_type="exact",
+        specs=[
+            {"width": 2000, "height": 2000, "file_size": 100},  # best (kept)
+            {"width": 1000, "height": 1000, "file_size": 300},  # rejected
+        ],
+    )
+
+    summary = await bulk_resolve_duplicates(session, dry_run=True)
+
+    assert summary["reclaimable_bytes"] == 300
+
+
+async def test_bulk_resolve_skips_already_resolved(session: AsyncSession) -> None:
+    """Groups with any member already chosen are treated as resolved and skipped."""
+    await _make_varied_group(
+        session,
+        match_type="exact",
+        specs=[
+            {"width": 2000, "height": 2000},
+            {"width": 1000, "height": 1000},
+        ],
+        user_choices=["keep", None],
+    )
+
+    summary = await bulk_resolve_duplicates(session)
+    assert summary["groups"] == 0
+
+
+async def test_bulk_resolve_match_types_filter(session: AsyncSession) -> None:
+    """match_types restricts resolution to the given exact match_type strings."""
+    await _make_varied_group(
+        session,
+        match_type="exact",
+        specs=[{"width": 2000, "height": 2000}, {"width": 1000, "height": 1000}],
+    )
+    phash_group, phash_images = await _make_varied_group(
+        session,
+        match_type="phash",
+        specs=[{"width": 2000, "height": 2000}, {"width": 1000, "height": 1000}],
+    )
+
+    summary = await bulk_resolve_duplicates(session, match_types=["exact"])
+
+    assert summary["groups"] == 1
+    # phash group untouched
+    for img in phash_images:
+        await session.refresh(img)
+        assert img.status == "indexed"

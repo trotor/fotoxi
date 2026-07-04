@@ -244,6 +244,28 @@ export async function resolveDuplicate(groupId: number, keepId: number, rejectId
   if (!res.ok) throw new Error(`Resolve failed: ${res.status}`)
 }
 
+export interface BulkResolveSummary {
+  groups: number
+  kept: number
+  rejected: number
+  reclaimable_bytes: number
+  applied: boolean
+}
+
+export async function bulkResolveDuplicates(params: {
+  match_types?: string[]
+  exclude_burst?: boolean
+  dry_run?: boolean
+}): Promise<BulkResolveSummary> {
+  const res = await fetch(`${BASE}/duplicates/bulk-resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  if (!res.ok) throw new Error(`Bulk resolve failed: ${res.status}`)
+  return res.json()
+}
+
 export async function getIndexerStatus(): Promise<IndexerStatus> {
   const res = await fetch(`${BASE}/indexer/status`)
   if (!res.ok) throw new Error(`Status fetch failed: ${res.status}`)
