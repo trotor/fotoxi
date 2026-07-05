@@ -2,6 +2,12 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.5] - 2026-07-05
+
+### Added
+- **Installable PWA (mobile)** — Fotoxi can be installed to a phone home screen and runs standalone (app-like). Uses `vite-plugin-pwa` (Workbox): web manifest, service worker precaching the app shell, generated icons (`frontend/scripts/generate_icons.py`), and iOS meta tags (`apple-touch-icon`, standalone status bar, `theme-color`). App-shell is cached; photos/data load live from the home server (no offline photo cache by design). Safe-area insets respected in standalone mode.
+- **Setup guide** `docs/mobile-pwa-tailscale.md` — install on iPhone over a private HTTPS connection via Tailscale Serve (required for the service worker). Design spec at `docs/superpowers/specs/2026-07-04-fotoxi-pwa-mobile-design.md`.
+
 ## [0.4.4] - 2026-07-04
 
 ### Changed

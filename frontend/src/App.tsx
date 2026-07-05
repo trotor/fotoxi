@@ -9,7 +9,7 @@ import Settings from './pages/Settings'
 import Stats from './pages/Stats'
 import MapPage from './pages/Map'
 
-const CURRENT_VERSION = '0.4.4'
+const CURRENT_VERSION = '0.4.5'
 const VERSION_CHECK_URL = 'https://raw.githubusercontent.com/trotor/fotoxi/main/version.json'
 
 function useLatestVersion() {
@@ -117,7 +117,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <div className="min-h-screen bg-gray-950 text-gray-100">
-          <nav className="bg-gray-900 border-b border-gray-700 px-4 py-3">
+          <nav className="bg-gray-900 border-b border-gray-700 pwa-safe-top pb-3">
             <div className="max-w-7xl mx-auto flex items-center gap-2">
               <img src="/favicon.svg" alt="Fotoxi" className="w-7 h-7" />
               <div className="mr-4">
@@ -134,7 +134,7 @@ export default function App() {
               <HelpButton />
             </div>
           </nav>
-          <main className="max-w-7xl mx-auto px-4 py-6">
+          <main className="max-w-7xl mx-auto px-4 py-6 pwa-safe-bottom">
             <Routes>
               <Route path="/" element={<Navigate to="/search" replace />} />
               <Route path="/search" element={<Search />} />
