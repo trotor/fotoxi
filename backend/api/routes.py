@@ -850,6 +850,14 @@ class ResolveBody(BaseModel):
     reject: List[int]
 
 
+@router.get("/version")
+async def get_app_version() -> Dict[str, str]:
+    """Return the running app version (single source: pyproject.toml)."""
+    from backend.version import get_version
+
+    return {"version": get_version()}
+
+
 class BulkResolveBody(BaseModel):
     match_types: Optional[List[str]] = None
     exclude_burst: bool = True

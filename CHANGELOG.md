@@ -2,6 +2,11 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.6] - 2026-07-05
+
+### Fixed
+- **Version single source of truth** (#44) — the app version now comes from one place, `pyproject.toml`, read at runtime (`backend/version.py`) and exposed at `GET /api/version`. The frontend fetches its running version from the backend instead of a hardcoded constant, and the OpenAPI `version` is derived too. This removes the drift where the nav could show a stale version. (`version.json` remains the published-latest marker for the update check.)
+
 ## [0.4.5] - 2026-07-05
 
 ### Added

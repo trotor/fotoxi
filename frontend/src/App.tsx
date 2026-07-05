@@ -9,18 +9,29 @@ import Settings from './pages/Settings'
 import Stats from './pages/Stats'
 import MapPage from './pages/Map'
 
-const CURRENT_VERSION = '0.4.5'
 const VERSION_CHECK_URL = 'https://raw.githubusercontent.com/trotor/fotoxi/main/version.json'
 
-function useLatestVersion() {
+/** Running version comes from the backend (single source: pyproject.toml);
+ *  `latest` is set only when the published version.json differs from it. */
+function useVersion() {
+  const [current, setCurrent] = useState<string | null>(null)
   const [latest, setLatest] = useState<string | null>(null)
   useEffect(() => {
+    let alive = true
+    fetch('/api/version')
+      .then(r => r.json())
+      .then(d => { if (alive) setCurrent(d.version ?? null) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+  useEffect(() => {
+    if (!current) return
     fetch(VERSION_CHECK_URL)
       .then(r => r.json())
-      .then(d => { if (d.version && d.version !== CURRENT_VERSION) setLatest(d.version) })
+      .then(d => { if (d.version && d.version !== current) setLatest(d.version) })
       .catch(() => {})
-  }, [])
-  return latest
+  }, [current])
+  return { current, latest }
 }
 
 const queryClient = new QueryClient({
@@ -49,11 +60,10 @@ function LangToggle() {
   )
 }
 
-function HelpButton() {
+function HelpButton({ current, latest }: { current: string | null; latest: string | null }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const latestVersion = useLatestVersion()
 
   useEffect(() => {
     if (!open) return
@@ -97,11 +107,11 @@ function HelpButton() {
           </div>
 
           <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500">
-            {t('help.version')} {CURRENT_VERSION}
-            {latestVersion && (
+            {t('help.version')} {current ?? '…'}
+            {latest && (
               <a href="https://github.com/trotor/fotoxi" target="_blank" rel="noopener noreferrer"
                 className="block mt-1.5 text-green-400 hover:text-green-300 font-medium">
-                {t('help.update_available')} {latestVersion}
+                {t('help.update_available')} {latest}
               </a>
             )}
           </div>
@@ -113,6 +123,7 @@ function HelpButton() {
 
 export default function App() {
   const { t } = useI18n()
+  const { current, latest } = useVersion()
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
@@ -122,7 +133,7 @@ export default function App() {
               <img src="/favicon.svg" alt="Fotoxi" className="w-7 h-7" />
               <div className="mr-4">
                 <span className="text-white font-bold text-lg">Fotoxi</span>
-                <span className="text-gray-600 text-xs ml-1">v{CURRENT_VERSION}</span>
+                {current && <span className="text-gray-600 text-xs ml-1">v{current}</span>}
               </div>
               <NavLink to="/search" className={navLinkClass}>{t('nav.search')}</NavLink>
               <NavLink to="/map" className={navLinkClass}>{t('nav.map')}</NavLink>
@@ -131,7 +142,7 @@ export default function App() {
               <NavLink to="/stats" className={navLinkClass}>{t('nav.stats')}</NavLink>
               <NavLink to="/settings" className={navLinkClass}>{t('nav.settings')}</NavLink>
               <LangToggle />
-              <HelpButton />
+              <HelpButton current={current} latest={latest} />
             </div>
           </nav>
           <main className="max-w-7xl mx-auto px-4 py-6 pwa-safe-bottom">

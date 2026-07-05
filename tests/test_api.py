@@ -93,3 +93,18 @@ async def test_bulk_resolve_duplicates_dry_run(app, client):
     assert data["groups"] == 1
     assert data["rejected"] == 1
     assert data["applied"] is False
+
+
+@pytest.mark.asyncio
+async def test_version_endpoint(client):
+    """GET /api/version returns the app version from pyproject (single source)."""
+    import tomllib
+    from pathlib import Path
+
+    resp = await client.get("/api/version")
+    assert resp.status_code == 200
+    data = resp.json()
+    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    with open(pyproject, "rb") as f:
+        expected = tomllib.load(f)["project"]["version"]
+    assert data["version"] == expected
