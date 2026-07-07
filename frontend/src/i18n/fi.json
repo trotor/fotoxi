@@ -149,6 +149,8 @@
   "search.load_error": "Virhe haettaessa kuvia.",
   "search.loading_more": "Ladataan lisaa...",
   "search.back_to_top": "Palaa alkuun",
+  "search.min_quality": "Laatu",
+  "search.quality_any": "Kaikki laadut",
   "folder.select": "Valitse kansio",
   "folder.empty": "Tyhjä kansio",
   "search.click_unkeep": "Klikkaa poistaaksesi sailytys-merkinta",

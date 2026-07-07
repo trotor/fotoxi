@@ -235,15 +235,6 @@ export async function getDuplicates(params?: { page?: number; limit?: number; ma
   return res.json()
 }
 
-export async function resolveDuplicate(groupId: number, keepId: number, rejectIds: number[]): Promise<void> {
-  const res = await fetch(`${BASE}/duplicates/${groupId}/resolve`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keep_id: keepId, reject_ids: rejectIds }),
-  })
-  if (!res.ok) throw new Error(`Resolve failed: ${res.status}`)
-}
-
 export interface BulkResolveSummary {
   groups: number
   kept: number

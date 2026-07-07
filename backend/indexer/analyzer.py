@@ -58,6 +58,22 @@ def _parse_response(content: str, quality_enabled: bool) -> Optional[dict]:
     }
 
 
+_LANGUAGE_NAMES = {
+    "fi": "Finnish",
+    "finnish": "Finnish",
+    "en": "English",
+    "english": "English",
+}
+
+
+def display_language(value: str) -> str:
+    """Normalise an AI-language setting (code or word, e.g. 'fi'/'finnish') into a
+    clear language name for the prompt. Unknown values are title-cased."""
+    if not value:
+        return "English"
+    return _LANGUAGE_NAMES.get(value.strip().lower(), value.strip().title())
+
+
 def analyze_image(
     path: str | Path,
     ollama_url: str,
@@ -111,13 +127,14 @@ def analyze_image(
     else:
         media_context = ""
 
+    lang_name = display_language(language)
     prompt = (
         f"{media_context}"
         f"Analyze {'this video' if is_video else 'this image'} carefully and respond with ONLY a JSON object (no other text).\n"
         f"Fields:\n"
-        f'- "description": 2-3 sentence description in {language}. Include what is shown, '
+        f'- "description": 2-3 sentence description in {lang_name}. Include what is shown, '
         f"the setting/environment, mood, and any notable details.\n"
-        f'- "tags": array of 8-15 keyword tags in {language}. Include: subject, action, '
+        f'- "tags": array of 8-15 keyword tags in {lang_name}. Include: subject, action, '
         f"setting, objects, colors, mood, style (e.g. portrait, landscape, macro), "
         f"time of day if visible, season if apparent.\n"
         f'- "colors": array of 2-4 dominant color names in english (e.g. "blue", "warm orange")\n'

@@ -2,6 +2,15 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.12] - 2026-07-07
+
+### Fixed
+- **AI language in the prompt is normalised** — the analyzer prompt used the raw setting value (e.g. "description in fi"). It now maps codes/words to a clear language name ("Finnish"/"English") via `display_language()`, so the model gets an unambiguous instruction regardless of whether the setting is stored as `fi`/`finnish`/`en`/`english`.
+- **Quality filter now has a UI control** — the min-quality filter was wired end-to-end (state → API → query) but `FilterBar` never rendered a control for it. Added a "Quality ≥ …" dropdown, so it's usable instead of dead.
+
+### Removed
+- **Dead code** — the broken, unused `resolveDuplicate()` API helper (wrong payload shape), the orphaned `ImageCompare.tsx` component, and an unused `get_duplicate_groups` import in the routes module.
+
 ## [0.4.11] - 2026-07-07
 
 ### Added

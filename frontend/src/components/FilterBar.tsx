@@ -20,10 +20,12 @@ export default function FilterBar({
   dateFrom,
   dateTo,
   camera,
+  minQuality,
   total,
   onDateFrom,
   onDateTo,
   onCamera,
+  onMinQuality,
   onFilter,
 }: FilterBarProps) {
   const { t } = useI18n()
@@ -49,6 +51,18 @@ export default function FilterBar({
         className={`${inputClass} w-40`}
         placeholder={t('stats.cameras')}
       />
+      <select
+        value={minQuality}
+        onChange={e => onMinQuality(e.target.value)}
+        className={inputClass}
+        title={t('search.min_quality')}
+      >
+        <option value="">{t('search.quality_any')}</option>
+        <option value="0.3">{t('search.min_quality')} ≥ 0.3</option>
+        <option value="0.5">{t('search.min_quality')} ≥ 0.5</option>
+        <option value="0.7">{t('search.min_quality')} ≥ 0.7</option>
+        <option value="0.9">{t('search.min_quality')} ≥ 0.9</option>
+      </select>
       <button
         onClick={onFilter}
         className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-1.5 rounded transition-colors"

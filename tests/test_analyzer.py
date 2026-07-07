@@ -264,4 +264,18 @@ def test_analyze_image_language_in_prompt(tmp_path):
 
     payload = mock_post.call_args[1]["json"]
     prompt_text = payload["messages"][0]["content"]
-    assert "german" in prompt_text
+    # The language is normalised to a display name (title-cased) in the prompt.
+    assert "german" in prompt_text.lower()
+
+
+def test_display_language_normalizes_codes_and_words():
+    """display_language maps codes/words to a clear language name for the prompt."""
+    from backend.indexer.analyzer import display_language
+
+    assert display_language("fi") == "Finnish"
+    assert display_language("finnish") == "Finnish"
+    assert display_language("en") == "English"
+    assert display_language("english") == "English"
+    assert display_language("EN") == "English"  # case-insensitive
+    # Unknown values fall back to a title-cased version rather than a raw code.
+    assert display_language("swedish") == "Swedish"

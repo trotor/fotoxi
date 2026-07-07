@@ -14,7 +14,6 @@ from pydantic import BaseModel
 from backend.db.queries import (
     bulk_resolve_duplicates,
     errors_summary,
-    get_duplicate_groups,
     resolve_duplicate_group,
     retry_errored,
     search_images,
