@@ -13,8 +13,10 @@ from pydantic import BaseModel
 
 from backend.db.queries import (
     bulk_resolve_duplicates,
+    errors_summary,
     get_duplicate_groups,
     resolve_duplicate_group,
+    retry_errored,
     search_images,
 )
 from sqlalchemy import select
@@ -856,6 +858,31 @@ async def get_app_version() -> Dict[str, str]:
     from backend.version import get_version
 
     return {"version": get_version()}
+
+
+@router.get("/errors/summary")
+async def get_errors_summary(request: Request) -> Dict[str, Any]:
+    """Errored images grouped by cause, plus error/missing totals."""
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        return await errors_summary(session)
+
+
+class RetryErrorsBody(BaseModel):
+    cause: Optional[str] = None
+
+
+@router.post("/errors/retry")
+async def post_retry_errors(request: Request, body: RetryErrorsBody) -> Dict[str, Any]:
+    """Reset errored images to pending so they get reprocessed on the next run.
+
+    Optionally restrict to a single ``cause`` (error_message). Trigger
+    ``POST /indexer/process`` afterwards to actually reprocess them.
+    """
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        reset = await retry_errored(session, cause=body.cause)
+    return {"reset": reset}
 
 
 class BulkResolveBody(BaseModel):

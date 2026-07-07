@@ -2,6 +2,11 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.8] - 2026-07-07
+
+### Added
+- **Errors & missing visibility + retry** (#30) — the Indexing page now shows an "Errors & missing" panel: errored files grouped by cause (e.g. "AI analysis returned no result", "Timeout — file too large") with per-cause and "Retry all" buttons, plus the missing-file count with an explanation of what `missing` means. Retry resets the errored images to `pending` (clearing the error) and kicks off reprocessing. New endpoints `GET /api/errors/summary` and `POST /api/errors/retry` (`backend/db/queries.py: errors_summary`, `retry_errored`).
+
 ## [0.4.7] - 2026-07-07
 
 ### Fixed

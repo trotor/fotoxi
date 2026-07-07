@@ -10,7 +10,10 @@ import {
   getSettings,
   updateSettings,
   getCloudFolders,
+  getErrorsSummary,
+  retryErrors,
   type CloudFolder,
+  type ErrorsSummary,
 } from '../api'
 import ProgressBar from '../components/ProgressBar'
 import FolderBrowser from '../components/FolderBrowser'
@@ -26,6 +29,80 @@ const PHASE_KEYS: Record<string, string> = {
   grouping: 'idx.phase.grouping',
   complete: 'idx.phase.complete',
   error: 'idx.phase.error',
+}
+
+function ErrorsPanel() {
+  const { t } = useI18n()
+  const [summary, setSummary] = useState<ErrorsSummary | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [resetCount, setResetCount] = useState<number | null>(null)
+
+  const load = () => { getErrorsSummary().then(setSummary).catch(() => {}) }
+  useEffect(() => { load() }, [])
+
+  if (!summary || (summary.total_errors === 0 && summary.total_missing === 0)) return null
+
+  async function handleRetry(cause?: string) {
+    setBusy(true)
+    setResetCount(null)
+    try {
+      const r = await retryErrors(cause)
+      await processOnly().catch(() => {})
+      setResetCount(r.reset)
+      load()
+    } catch {
+      /* ignore */
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="bg-gray-900 rounded-lg p-5 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-medium text-gray-100">{t('idx.errors_title')}</h2>
+        {summary.total_errors > 0 && (
+          <button
+            onClick={() => handleRetry()}
+            disabled={busy}
+            className="text-xs px-3 py-1.5 rounded bg-blue-800 hover:bg-blue-700 disabled:opacity-40 text-white font-medium"
+          >
+            {busy ? t('idx.errors_retrying') : `${t('idx.errors_retry_all')} (${summary.total_errors})`}
+          </button>
+        )}
+      </div>
+
+      {resetCount !== null && (
+        <p className="text-xs text-green-400">↻ {resetCount} {t('idx.errors_reset_done')}</p>
+      )}
+
+      {summary.causes.length > 0 && (
+        <div className="space-y-1.5">
+          {summary.causes.map(c => (
+            <div key={c.cause} className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-gray-300 truncate">
+                <span className="text-red-400 font-medium">{c.count}</span> · {c.cause}
+              </span>
+              <button
+                onClick={() => handleRetry(c.cause)}
+                disabled={busy}
+                className="shrink-0 text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-blue-400 border border-gray-700"
+              >
+                {t('idx.errors_retry')}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {summary.total_missing > 0 && (
+        <div className="pt-2 border-t border-gray-800 text-xs text-gray-400">
+          <span className="text-yellow-400 font-medium">{summary.total_missing}</span>{' '}
+          {t('idx.errors_missing_label')} — {t('idx.errors_missing_hint')}
+        </div>
+      )}
+    </div>
+  )
 }
 
 const DEFAULT_STATUS: IndexerStatus = {
@@ -373,6 +450,9 @@ export default function Indexing() {
           </div>
         </div>
       )}
+
+      {/* Errors & missing */}
+      <ErrorsPanel />
 
       {/* Source folders */}
       <div className="bg-gray-900 rounded-lg p-5 space-y-4">

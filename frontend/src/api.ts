@@ -266,6 +266,28 @@ export async function bulkResolveDuplicates(params: {
   return res.json()
 }
 
+export interface ErrorsSummary {
+  causes: { cause: string; count: number }[]
+  total_errors: number
+  total_missing: number
+}
+
+export async function getErrorsSummary(): Promise<ErrorsSummary> {
+  const res = await fetch(`${BASE}/errors/summary`)
+  if (!res.ok) throw new Error(`Errors summary failed: ${res.status}`)
+  return res.json()
+}
+
+export async function retryErrors(cause?: string): Promise<{ reset: number }> {
+  const res = await fetch(`${BASE}/errors/retry`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(cause ? { cause } : {}),
+  })
+  if (!res.ok) throw new Error(`Retry failed: ${res.status}`)
+  return res.json()
+}
+
 export async function getIndexerStatus(): Promise<IndexerStatus> {
   const res = await fetch(`${BASE}/indexer/status`)
   if (!res.ok) throw new Error(`Status fetch failed: ${res.status}`)

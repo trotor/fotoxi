@@ -397,3 +397,52 @@ async def bulk_resolve_duplicates(
         "reclaimable_bytes": reclaimable,
         "applied": not dry_run,
     }
+
+
+async def errors_summary(session: AsyncSession) -> dict:
+    """Summarise processing failures.
+
+    Returns errored images grouped by their ``error_message`` (the cause,
+    highest count first) plus the total number of ``error`` and ``missing``
+    images.
+    """
+    err_result = await session.execute(
+        select(Image.error_message, func.count(Image.id))
+        .where(Image.status == "error")
+        .group_by(Image.error_message)
+    )
+    causes = [
+        {"cause": (msg or "Unknown error"), "count": count}
+        for msg, count in err_result.all()
+    ]
+    causes.sort(key=lambda c: c["count"], reverse=True)
+
+    missing_result = await session.execute(
+        select(func.count(Image.id)).where(Image.status == "missing")
+    )
+    return {
+        "causes": causes,
+        "total_errors": sum(c["count"] for c in causes),
+        "total_missing": missing_result.scalar() or 0,
+    }
+
+
+async def retry_errored(session: AsyncSession, cause: Optional[str] = None) -> int:
+    """Reset errored images back to ``pending`` so the pipeline reprocesses them.
+
+    With ``cause`` given, only images whose ``error_message`` matches are reset.
+    Clears ``error_message``. Returns the number of images reset.
+    """
+    stmt = select(Image).where(Image.status == "error")
+    if cause is not None:
+        stmt = stmt.where(Image.error_message == cause)
+    result = await session.execute(stmt)
+    images = list(result.scalars().all())
+
+    now = datetime.datetime.utcnow()
+    for img in images:
+        img.status = "pending"
+        img.error_message = None
+        img.status_changed_at = now
+    await session.commit()
+    return len(images)

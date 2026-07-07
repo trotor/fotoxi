@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime
+import itertools
 
 import pytest
 import pytest_asyncio
@@ -11,8 +12,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.db.models import DuplicateGroup, DuplicateGroupMember, Image
 from backend.db.queries import (
     bulk_resolve_duplicates,
+    errors_summary,
     get_duplicate_groups,
     resolve_duplicate_group,
+    retry_errored,
     search_images,
 )
 from backend.db.session import create_engine_and_init
@@ -501,3 +504,75 @@ async def test_bulk_resolve_match_types_filter(session: AsyncSession) -> None:
     for img in phash_images:
         await session.refresh(img)
         assert img.status == "indexed"
+
+
+# ---------------------------------------------------------------------------
+# errors_summary / retry_errored tests
+# ---------------------------------------------------------------------------
+
+
+_err_counter = itertools.count()
+
+
+async def _make_error_image(session: AsyncSession, *, msg: str | None, status: str = "error") -> Image:
+    img = Image(
+        file_path=f"/photos/err_{next(_err_counter)}.jpg",
+        file_name="err.jpg",
+        file_size=1,
+        file_mtime=1.0,
+        status=status,
+        error_message=msg,
+    )
+    session.add(img)
+    await session.flush()
+    await session.commit()
+    return img
+
+
+async def test_errors_summary_groups_by_cause(session: AsyncSession) -> None:
+    """errors_summary groups errored images by error_message and counts missing."""
+    await _make_error_image(session, msg="AI analysis returned no result")
+    await _make_error_image(session, msg="AI analysis returned no result")
+    await _make_error_image(session, msg="Timeout - file too large")
+    await _make_error_image(session, msg=None, status="missing")
+    await _make_error_image(session, msg=None, status="indexed")
+
+    summary = await errors_summary(session)
+
+    assert summary["total_errors"] == 3
+    assert summary["total_missing"] == 1
+    counts = {c["cause"]: c["count"] for c in summary["causes"]}
+    assert counts["AI analysis returned no result"] == 2
+    assert counts["Timeout - file too large"] == 1
+    # sorted by count desc
+    assert summary["causes"][0]["count"] >= summary["causes"][-1]["count"]
+
+
+async def test_retry_errored_resets_to_pending(session: AsyncSession) -> None:
+    """retry_errored moves errored images back to pending and clears the message."""
+    a = await _make_error_image(session, msg="AI analysis returned no result")
+    b = await _make_error_image(session, msg="Timeout - file too large")
+    ok = await _make_error_image(session, msg=None, status="indexed")
+
+    n = await retry_errored(session)
+
+    assert n == 2
+    for img in (a, b):
+        await session.refresh(img)
+        assert img.status == "pending"
+        assert img.error_message is None
+    await session.refresh(ok)
+    assert ok.status == "indexed"
+
+
+async def test_retry_errored_by_cause(session: AsyncSession) -> None:
+    """retry_errored(cause=...) only resets images with that error_message."""
+    await _make_error_image(session, msg="AI analysis returned no result")
+    await _make_error_image(session, msg="AI analysis returned no result")
+    keep = await _make_error_image(session, msg="Timeout - file too large")
+
+    n = await retry_errored(session, cause="AI analysis returned no result")
+
+    assert n == 2
+    await session.refresh(keep)
+    assert keep.status == "error"

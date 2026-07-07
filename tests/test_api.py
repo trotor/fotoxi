@@ -108,3 +108,35 @@ async def test_version_endpoint(client):
     with open(pyproject, "rb") as f:
         expected = tomllib.load(f)["project"]["version"]
     assert data["version"] == expected
+
+
+@pytest.mark.asyncio
+async def test_errors_summary_and_retry_endpoints(app, client):
+    """GET /api/errors/summary groups by cause; POST /api/errors/retry resets them."""
+    from backend.db.models import Image
+
+    factory = app.state.session_factory
+    async with factory() as s:
+        s.add(Image(file_path="/e1.jpg", file_name="e1.jpg", file_size=1, file_mtime=1.0,
+                    status="error", error_message="AI analysis returned no result"))
+        s.add(Image(file_path="/e2.jpg", file_name="e2.jpg", file_size=1, file_mtime=1.0,
+                    status="error", error_message="AI analysis returned no result"))
+        s.add(Image(file_path="/m1.jpg", file_name="m1.jpg", file_size=1, file_mtime=1.0,
+                    status="missing"))
+        await s.commit()
+
+    resp = await client.get("/api/errors/summary")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_errors"] == 2
+    assert data["total_missing"] == 1
+    assert data["causes"][0]["cause"] == "AI analysis returned no result"
+    assert data["causes"][0]["count"] == 2
+
+    retry = await client.post("/api/errors/retry", json={})
+    assert retry.status_code == 200
+    assert retry.json()["reset"] == 2
+
+    # after retry, no errors remain
+    resp2 = await client.get("/api/errors/summary")
+    assert resp2.json()["total_errors"] == 0
