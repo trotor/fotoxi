@@ -6,6 +6,7 @@ import { searchImages, thumbUrl, fullUrl, updateImageStatus, refreshImageAll, ge
 import type { GeocodeSuggestion } from '../api'
 import FilterBar from '../components/FilterBar'
 import { useI18n } from '../i18n/useTranslation'
+import { useToast } from '../components/Toast'
 
 const PAGE_SIZE = 40
 
@@ -435,6 +436,7 @@ function ImageCard({ image, onClick, onStatusChange, onCustomTag, customTagLabel
 
 export default function Search() {
   const { t } = useI18n()
+  const { toast, confirm } = useToast()
   const [searchParams] = useSearchParams()
 
   const [query, setQuery] = useState('')
@@ -688,10 +690,24 @@ export default function Search() {
   const total = data?.pages[0]?.total ?? 0
 
   const handleStatusChange = useCallback(async (imageId: number, newStatus: string) => {
+    const prevStatus = allImages.find(i => i.id === imageId)?.status
     await updateImageStatus(imageId, newStatus)
     queryClient.invalidateQueries({ queryKey: ['search'] })
     setSelectedImage(prev => prev && prev.id === imageId ? { ...prev, status: newStatus } : prev)
-  }, [queryClient])
+    // Offer undo for the destructive action (reject).
+    if (newStatus === 'rejected' && prevStatus && prevStatus !== 'rejected') {
+      toast(t('search.rejected'), {
+        action: {
+          label: t('common.undo'),
+          onClick: async () => {
+            await updateImageStatus(imageId, prevStatus)
+            queryClient.invalidateQueries({ queryKey: ['search'] })
+            setSelectedImage(prev => prev && prev.id === imageId ? { ...prev, status: prevStatus } : prev)
+          },
+        },
+      })
+    }
+  }, [queryClient, allImages, toast, t])
 
   const handleCustomTag = useCallback(async (imageId: number) => {
     await setImageCustomTag(imageId, customTagLabel)
@@ -926,10 +942,10 @@ export default function Search() {
         {!excludeStatuses.has('missing') && (
           <button
             onClick={async () => {
-              if (!confirm(t('search.bulk_reject_missing_confirm'))) return
+              if (!(await confirm(t('search.bulk_reject_missing_confirm'), { danger: true }))) return
               const result = await bulkRejectMissing()
               queryClient.invalidateQueries({ queryKey: ['search'] })
-              alert(t('search.bulk_reject_missing_done').replace('{count}', String(result.rejected_count)))
+              toast(t('search.bulk_reject_missing_done').replace('{count}', String(result.rejected_count)))
             }}
             className="text-xs px-3 py-1 rounded transition-colors bg-red-900/60 text-red-300 hover:bg-red-800/70 border border-red-800/50"
           >
@@ -1081,7 +1097,8 @@ export default function Search() {
               </button>
               <button
                 onClick={async () => {
-                  if (confirm(`Piilota kansio "${folderFilter.split('/').pop()}" ja kaikki sen kuvat indeksoinnista?`)) {
+                  const folderName = folderFilter.split('/').pop() ?? ''
+                  if (await confirm(t('search.hide_folder_confirm').replace('{folder}', folderName), { danger: true })) {
                     await excludeFolder(folderFilter)
                     handleFolderSelect('')
                     queryClient.invalidateQueries({ queryKey: ['search'] })

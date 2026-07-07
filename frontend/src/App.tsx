@@ -8,6 +8,7 @@ import Indexing from './pages/Indexing'
 import Settings from './pages/Settings'
 import Stats from './pages/Stats'
 import MapPage from './pages/Map'
+import { UIProvider } from './components/Toast'
 
 const VERSION_CHECK_URL = 'https://raw.githubusercontent.com/trotor/fotoxi/main/version.json'
 
@@ -127,6 +128,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <UIProvider>
         <div className="min-h-screen bg-gray-950 text-gray-100">
           <nav className="bg-gray-900 border-b border-gray-700 pwa-safe-top pb-3">
             <div className="max-w-7xl mx-auto flex items-center gap-2">
@@ -159,6 +161,7 @@ export default function App() {
             <Route path="/map" element={<MapPage />} />
           </Routes>
         </div>
+        </UIProvider>
       </BrowserRouter>
     </QueryClientProvider>
   )

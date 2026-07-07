@@ -2,6 +2,11 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.11] - 2026-07-07
+
+### Added
+- **Undo + toast notifications; in-app dialogs** (#36) — rejecting an image now shows a toast with an **Undo** action that restores its previous status. Native `alert()`/`confirm()` are replaced by a themed in-app toast/confirm dialog (with danger styling for destructive actions), used for "reject all missing" and "hide folder". New `UIProvider`/`useToast` (`frontend/src/components/Toast.tsx`).
+
 ## [0.4.10] - 2026-07-07
 
 ### Fixed
