@@ -207,3 +207,28 @@ async def test_fts_multiple_images_only_matching_returned(session: AsyncSession)
     rowids = [r[0] for r in rows]
     assert img_cat.id in rowids
     assert len(rowids) == 1, f"Expected 1 result but got {len(rowids)}: {rowids}"
+
+
+async def test_fts_search_matches_language_specific_columns(session: AsyncSession) -> None:
+    """Search matches AI text stored only in a per-language column (Finnish here),
+    even when the generic ai_description column is empty."""
+    img = Image(
+        file_path="/photos/IMG_2020.jpg",
+        file_name="IMG_2020.jpg",  # deliberately generic — search term is NOT here
+        file_size=1024,
+        file_mtime=1700000000.0,
+        ai_description=None,
+        ai_tags=None,
+        ai_description_fi="Vanha punainen lato pellon laidalla",
+        ai_tags_fi='["lato", "pelto", "maaseutu"]',
+        status="indexed",
+    )
+    session.add(img)
+    await session.flush()
+    await session.commit()
+
+    result = await session.execute(
+        text("SELECT rowid FROM images_fts WHERE images_fts MATCH 'lato'")
+    )
+    rowids = [r[0] for r in result.fetchall()]
+    assert img.id in rowids, "Finnish-only AI text should be full-text searchable"

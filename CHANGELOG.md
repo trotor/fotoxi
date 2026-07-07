@@ -2,6 +2,14 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.7] - 2026-07-07
+
+### Fixed
+- **Full-text search now covers all AI languages** (#31) — the FTS5 index and its sync triggers were expanded from the 3 generic columns to also index the per-language columns (`ai_description_en/fi`, `ai_tags_en/fi`), so search matches AI descriptions/tags regardless of the language the analysis ran in. Existing databases self-heal on startup: `init_db` detects the old narrower FTS schema, recreates it with the full column set, and rebuilds the index from existing data (no manual migration needed).
+
+### Notes
+- To get Finnish search hits on your library, set the AI language to Finnish in Settings and re-run AI (or keep English and search in English) — the index now handles whichever language(s) are present.
+
 ## [0.4.6] - 2026-07-05
 
 ### Fixed
