@@ -187,7 +187,7 @@ export default function Stats() {
             <div key={status} className="text-center cursor-pointer hover:bg-gray-800 rounded p-2 transition-colors"
               onClick={() => goSearch({ status })}>
               <p className="text-lg font-bold text-gray-200">{count.toLocaleString()}</p>
-              <p className="text-xs text-gray-500">{status}</p>
+              <p className="text-xs text-gray-500">{t(`status.${status}`)}</p>
             </div>
           ))}
         </div>

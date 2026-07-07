@@ -44,7 +44,7 @@ export default function Settings() {
     'w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-blue-500'
 
   if (isLoading) return <div className="text-center py-12 text-gray-400">{t('search.loading')}</div>
-  if (isError) return <div className="text-center py-12 text-red-400">Error</div>
+  if (isError) return <div className="text-center py-12 text-red-400">{t('common.error')}</div>
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

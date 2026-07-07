@@ -313,18 +313,22 @@ function DetailModal({ image, onClose, onStatusChange, onRefreshDone, onCustomTa
   )
 }
 
-const STATUS_BADGES: Record<string, { label: string; bg: string; text: string } | null> = {
-  kept: { label: 'Sailytetty', bg: 'bg-green-600', text: 'text-white' },
-  rejected: { label: 'Hylatty', bg: 'bg-red-700', text: 'text-red-100' },
-  pending: { label: 'Odottaa', bg: 'bg-yellow-700', text: 'text-yellow-100' },
+const STATUS_BADGES: Record<string, { key: string; bg: string; text: string } | null> = {
+  kept: { key: 'status.kept', bg: 'bg-green-600', text: 'text-white' },
+  rejected: { key: 'status.rejected', bg: 'bg-red-700', text: 'text-red-100' },
+  pending: { key: 'status.pending', bg: 'bg-yellow-700', text: 'text-yellow-100' },
   indexed: null, // no badge for normal state
-  error: { label: 'Virhe', bg: 'bg-red-900', text: 'text-red-300' },
+  error: { key: 'status.error', bg: 'bg-red-900', text: 'text-red-300' },
 }
 
 function ImageCard({ image, onClick, onStatusChange, onCustomTag, customTagLabel, onFolderSelect }: { image: ImageData; onClick: () => void; onStatusChange: (id: number, status: string) => void; onCustomTag: (id: number) => void; customTagLabel: string; onFolderSelect: (folder: string) => void }) {
+  const { t } = useI18n()
+  const statusBadge = STATUS_BADGES[image.status]
   const badge = image.custom_tag
     ? { label: image.custom_tag, bg: 'bg-yellow-600', text: 'text-yellow-100' }
-    : STATUS_BADGES[image.status]
+    : statusBadge
+    ? { label: t(statusBadge.key), bg: statusBadge.bg, text: statusBadge.text }
+    : null
   const isRejected = image.status === 'rejected'
   const hasRealExif = !!(image.exif_camera_model || image.exif_iso != null || image.exif_aperture != null || image.exif_focal_length != null)
   return (
@@ -343,7 +347,7 @@ function ImageCard({ image, onClick, onStatusChange, onCustomTag, customTagLabel
           <button
             onClick={(e) => { e.stopPropagation(); onStatusChange(image.id, 'indexed') }}
             className={`absolute top-1 left-1 ${badge.bg} ${badge.text} text-xs px-1.5 py-0.5 rounded hover:opacity-70 transition-opacity cursor-pointer`}
-            title="Klikkaa poistaaksesi sailytys-merkinta"
+            title={t('search.click_unkeep')}
           >
             {badge.label} ✕
           </button>
@@ -1143,7 +1147,7 @@ export default function Search() {
         <div className="text-center py-12 text-gray-400">{t('search.loading')}</div>
       )}
       {isError && (
-        <div className="text-center py-12 text-red-400">Virhe haettaessa kuvia.</div>
+        <div className="text-center py-12 text-red-400">{t('search.load_error')}</div>
       )}
 
       {allImages.length > 0 && (
@@ -1164,7 +1168,7 @@ export default function Search() {
           {/* Infinite scroll trigger */}
           <div ref={loadMoreRef} className="h-20 flex items-center justify-center">
             {isFetchingNextPage && (
-              <span className="text-gray-400 text-sm animate-pulse">Ladataan lisaa...</span>
+              <span className="text-gray-400 text-sm animate-pulse">{t('search.loading_more')}</span>
             )}
           </div>
         </>
@@ -1179,7 +1183,7 @@ export default function Search() {
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           className="fixed bottom-6 right-6 bg-gray-800 hover:bg-gray-700 text-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-colors border border-gray-600 z-40"
-          title="Palaa alkuun"
+          title={t('search.back_to_top')}
         >
           ^
         </button>

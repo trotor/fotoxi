@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { browseDirectory, type BrowseResult } from '../api'
+import { useI18n } from '../i18n/useTranslation'
 
 interface FolderBrowserProps {
   onSelect: (path: string) => void
@@ -7,6 +8,7 @@ interface FolderBrowserProps {
 }
 
 export default function FolderBrowser({ onSelect, onCancel }: FolderBrowserProps) {
+  const { t } = useI18n()
   const [data, setData] = useState<BrowseResult | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -24,7 +26,7 @@ export default function FolderBrowser({ onSelect, onCancel }: FolderBrowserProps
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onCancel}>
       <div className="bg-gray-900 rounded-xl w-full max-w-lg mx-4 max-h-[70vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="p-4 border-b border-gray-700">
-          <h3 className="font-bold text-sm mb-2">Valitse kansio</h3>
+          <h3 className="font-bold text-sm mb-2">{t('folder.select')}</h3>
           <p className="text-xs text-gray-400 font-mono truncate">{data?.current ?? '...'}</p>
         </div>
 
@@ -52,7 +54,7 @@ export default function FolderBrowser({ onSelect, onCancel }: FolderBrowserProps
                 </button>
               ))}
               {data.dirs.length === 0 && (
-                <p className="text-gray-500 text-sm p-2">Tyhjä kansio</p>
+                <p className="text-gray-500 text-sm p-2">{t('folder.empty')}</p>
               )}
             </>
           )}

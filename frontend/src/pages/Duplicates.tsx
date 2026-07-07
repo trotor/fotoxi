@@ -216,7 +216,7 @@ export default function Duplicates() {
   )
 
   if (isLoading) return <div className="text-center py-12 text-gray-400">{t('search.loading')}</div>
-  if (isError) return <div className="text-center py-12 text-red-400">Error</div>
+  if (isError) return <div className="text-center py-12 text-red-400">{t('common.error')}</div>
   if (groups.length === 0 || !group) return <div className="text-center py-12 text-gray-500">{findButton}<div className="mt-4">{t('dup.no_duplicates')}</div></div>
 
   function toggleReject(imageId: number) {
@@ -433,7 +433,7 @@ export default function Duplicates() {
           const max = Math.max(...dists)
           return (
             <span className="text-xs text-gray-500">
-              pHash etäisyys: {min === max ? min : `${min}-${max}`}
+              {t('dup.phash_distance')}: {min === max ? min : `${min}-${max}`}
             </span>
           )
         })()}
@@ -507,7 +507,7 @@ export default function Duplicates() {
               className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-blue-400 text-xs px-3 py-1.5 rounded border border-blue-900 transition-colors"
               title={folder}
             >
-              Säilytä .../{shortFolder(folder).split('/').pop()} (hylkää {rejectCount})
+              {t('dup.keep_folder')} .../{shortFolder(folder).split('/').pop()} ({t('dup.reject')} {rejectCount})
             </button>
           )
         })}
@@ -623,8 +623,8 @@ export default function Duplicates() {
       {/* Status */}
       {groupRejected.size > 0 && (
         <div className="text-sm text-gray-400">
-          Säilytetään: <span className="text-green-400 font-medium">{keptCount}</span> ·
-          Hylätään: <span className="text-red-400 font-medium">{groupRejected.size}</span>
+          {t('dup.keeping')}: <span className="text-green-400 font-medium">{keptCount}</span> ·
+          {t('dup.rejecting')}: <span className="text-red-400 font-medium">{groupRejected.size}</span>
         </div>
       )}
 

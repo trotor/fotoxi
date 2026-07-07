@@ -2,6 +2,11 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.10] - 2026-07-07
+
+### Fixed
+- **i18n leaks** (#32) — user-facing strings that were hardcoded (and so ignored the language toggle) now go through the translation system: Stats status labels (were always English), the Search status badges (kept/rejected/pending/error), error messages ("Error"/"Virhe haettaessa kuvia."), the Search "loading more"/"back to top" labels, the Duplicates folder/keeping/rejecting/pHash-distance labels, the Indexing "rejected"/"loading" labels, and the FolderBrowser dialog. Combined with the already-fixed `gps_inherit` phase (0.4.9), switching FI/EN now translates these consistently. (`ImageCompare.tsx` is dead/unused code and was left as-is.)
+
 ## [0.4.9] - 2026-07-07
 
 ### Changed

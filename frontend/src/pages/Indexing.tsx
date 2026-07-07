@@ -373,7 +373,7 @@ export default function Indexing() {
                 </div>
                 <div className="bg-red-900/20 rounded-lg p-3 text-center">
                   <p className="text-2xl font-bold text-red-300">{db.rejected}</p>
-                  <p className="text-xs text-red-400 mt-0.5">Hylätty</p>
+                  <p className="text-xs text-red-400 mt-0.5">{t('status.rejected')}</p>
                 </div>
               </div>
               {/* Secondary stats */}
@@ -485,7 +485,7 @@ export default function Indexing() {
           </div>
         )}
         {loadingDirs ? (
-          <p className="text-gray-500 text-sm">Ladataan...</p>
+          <p className="text-gray-500 text-sm">{t('search.loading')}</p>
         ) : (
           <ul className="space-y-2">
             {sourceDirs.map(dir => {
