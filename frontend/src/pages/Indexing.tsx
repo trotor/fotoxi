@@ -26,6 +26,7 @@ const PHASE_KEYS: Record<string, string> = {
   ai_analysis: 'idx.phase.ai_analysis',
   hashing: 'idx.phase.hashing',
   geocoding: 'idx.phase.geocoding',
+  gps_inherit: 'idx.phase.gps_inherit',
   grouping: 'idx.phase.grouping',
   complete: 'idx.phase.complete',
   error: 'idx.phase.error',
@@ -269,24 +270,27 @@ export default function Indexing() {
 
         {/* Progress bar */}
         <div className="space-y-1">
+          {/* Main phase progress. Hidden during AI analysis — the clearly
+              labelled AI progress bar below covers that phase, so we don't show
+              a second, stale-looking metadata bar alongside it. */}
           {status.phase === 'scanning' ? (
-            <div className="flex justify-between text-xs text-gray-400">
-              <span>{status.processed} {t('stats.files')}...</span>
-              <span className="animate-pulse">{t('idx.scanning_anim')}</span>
-            </div>
-          ) : (
-            <div className="flex justify-between text-xs text-gray-400">
-              <span>{status.processed} / {status.total} {t('common.processed')}</span>
-              <span>{pct}%</span>
-            </div>
-          )}
-          {status.phase !== 'scanning' && (
-            <ProgressBar value={status.processed} max={status.total} />
-          )}
-          {status.phase === 'scanning' && (
-            <div className="w-full bg-gray-700 rounded h-2 overflow-hidden">
-              <div className="h-full bg-blue-500 rounded animate-pulse" style={{ width: '100%', opacity: 0.4 }} />
-            </div>
+            <>
+              <div className="flex justify-between text-xs text-gray-400">
+                <span>{t('idx.phase.scanning')} · {status.processed} {t('stats.files')}...</span>
+                <span className="animate-pulse">{t('idx.scanning_anim')}</span>
+              </div>
+              <div className="w-full bg-gray-700 rounded h-2 overflow-hidden">
+                <div className="h-full bg-blue-500 rounded animate-pulse" style={{ width: '100%', opacity: 0.4 }} />
+              </div>
+            </>
+          ) : status.phase === 'ai_analysis' ? null : (
+            <>
+              <div className="flex justify-between text-xs text-gray-400">
+                <span>{phaseLabel} · {status.processed} / {status.total}</span>
+                <span>{pct}%</span>
+              </div>
+              <ProgressBar value={status.processed} max={status.total} />
+            </>
           )}
           {status.current_file && status.running && (
             <div className="flex items-center gap-3 mt-2 bg-gray-800/50 rounded p-2">

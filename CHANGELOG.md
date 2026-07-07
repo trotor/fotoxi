@@ -2,6 +2,14 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.9] - 2026-07-07
+
+### Changed
+- **Indexing progress is clearer** (#39) — the main phase bar is now labelled with the current phase (Scan / Metadata / …) and is hidden during AI analysis, so the clearly-labelled AI progress bar no longer sits next to a second, stale-looking bar. The `gps_inherit` phase is now translated instead of showing a raw string.
+- **Settings layout balanced** (#40) — the settings cards are centered and laid out in a responsive two-column grid instead of a single narrow left column.
+- **Map cluster legend** (#37) — a legend explains the cluster colour buckets (1–4 / 5–19 / 20–99 / 100+) and that circle size reflects count.
+- **Dark map tiles** (#38) — the map now uses a dark basemap (CARTO Dark Matter) that matches the app theme instead of bright OSM tiles.
+
 ## [0.4.8] - 2026-07-07
 
 ### Added

@@ -47,9 +47,10 @@ export default function Settings() {
   if (isError) return <div className="text-center py-12 text-red-400">Error</div>
 
   return (
-    <div className="max-w-lg space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <h1 className="text-xl font-semibold text-gray-100">{t('nav.settings')}</h1>
 
+      <div className="grid gap-6 md:grid-cols-2 items-start">
       <div className="bg-gray-900 rounded-lg p-5 space-y-5">
         <h2 className="text-sm font-medium text-gray-300 uppercase tracking-wider">Ollama</h2>
 
@@ -164,6 +165,7 @@ export default function Settings() {
             <span>{t('settings.loose')} (20)</span>
           </div>
         </div>
+      </div>
       </div>
 
       <button

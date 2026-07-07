@@ -61,6 +61,31 @@ function clusterRadius(count: number): number {
   return Math.min(8 + Math.log2(count + 1) * 4, 30)
 }
 
+/** Legend explaining cluster colour buckets (matches clusterColor) and size. */
+function MapLegend() {
+  const { t } = useI18n()
+  const items = [
+    { color: '#ef4444', label: '100+' },
+    { color: '#f59e0b', label: '20–99' },
+    { color: '#3b82f6', label: '5–19' },
+    { color: '#22c55e', label: '1–4' },
+  ]
+  return (
+    <div className="absolute bottom-4 left-4 z-[1000] bg-gray-900/90 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-300 shadow-lg pointer-events-none">
+      <div className="font-medium text-gray-400 mb-1">{t('map.legend_title')}</div>
+      <div className="space-y-1">
+        {items.map(it => (
+          <div key={it.label} className="flex items-center gap-2">
+            <span className="inline-block w-3 h-3 rounded-full" style={{ background: it.color }} />
+            <span>{it.label}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-1 text-[10px] text-gray-500">{t('map.legend_size')}</div>
+    </div>
+  )
+}
+
 export default function MapPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
@@ -282,7 +307,8 @@ export default function MapPage() {
       {/* Map + Gallery split */}
       <div className="flex flex-1 min-h-0">
         {/* Map */}
-        <div className={`${selectedLocation ? 'w-1/2' : 'w-full'} transition-all duration-300`}>
+        <div className={`relative ${selectedLocation ? 'w-1/2' : 'w-full'} transition-all duration-300`}>
+          <MapLegend />
           <MapContainer
             center={[63.0, 27.0]}
             zoom={6}
@@ -291,8 +317,8 @@ export default function MapPage() {
             style={{ background: '#1a1a2e' }}
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             />
             <MapEvents onBoundsChange={handleBoundsChange} onMapClick={handleMapClick} />
             {flyTarget && <FlyTo center={flyTarget.center} zoom={flyTarget.zoom} />}
