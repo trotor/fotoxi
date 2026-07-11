@@ -78,5 +78,7 @@ Indexing runs in-process via the orchestrator, broadcasting progress over WebSoc
 - All database access is async (`async with get_session() as session`)
 - pytest uses `asyncio_mode = "auto"` — test functions can be plain `async def`
 - Frontend build output goes to `frontend/dist/` and is served statically by the backend
+- **The UI is used on mobile (over Tailscale), not just desktop** — verify new/changed UI at a phone width (~390px), e.g. Playwright `setViewportSize({ width: 390 })`. Navigation collapses into a hamburger (☰) menu below Tailwind's `md` breakpoint; keep dense button/chip rows `flex-wrap` or responsive
+- After changing the frontend, rebuild `frontend/dist/` (`npm run build`). The PWA service worker (`registerType: 'autoUpdate'`) caches the old build, so a browser may need a couple of reloads (or SW unregister + cache clear) to show changes
 - Image search supports FTS5 queries, date/camera/folder/GPS filters, and pagination (PAGE_SIZE=40)
 - Supported formats: JPEG, PNG, HEIC, TIFF, RAW (CR2/NEF/ARW/DNG), MP4, MOV, AVI, MKV

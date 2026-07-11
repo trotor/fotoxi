@@ -2,6 +2,12 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.13] - 2026-07-10
+
+### Fixed
+- **Mobile navigation no longer overflows** — on phones the top nav row (six section links + language/help) ran off the right edge, leaving Indexing, Stats and Settings unreachable. On narrow screens the section links now collapse into a hamburger (☰) menu; the desktop layout is unchanged. (`App.tsx`, new `nav.menu` translation.)
+- **Indexing action buttons wrap on mobile** — the "Process missing / Compute hashes / Scan" row didn't fit on a phone and the green scan button was clipped off-screen. The status and buttons now stack and wrap on narrow screens. (`Indexing.tsx`)
+
 ## [0.4.12] - 2026-07-07
 
 ### Fixed

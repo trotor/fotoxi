@@ -220,14 +220,14 @@ export default function Indexing() {
     <div className="space-y-6 max-w-5xl">
       {/* Status card */}
       <div className="bg-gray-900 rounded-lg p-5 space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <span
               className={`w-3 h-3 rounded-full ${status.running ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}`}
             />
             <span className="font-medium text-gray-100">{phaseLabel}</span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {!status.running && (
               <>
                 <button

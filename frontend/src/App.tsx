@@ -122,6 +122,64 @@ function HelpButton({ current, latest }: { current: string | null; latest: strin
   )
 }
 
+const navItems: { to: string; key: string }[] = [
+  { to: '/search', key: 'nav.search' },
+  { to: '/map', key: 'nav.map' },
+  { to: '/duplicates', key: 'nav.duplicates' },
+  { to: '/indexing', key: 'nav.indexing' },
+  { to: '/stats', key: 'nav.stats' },
+  { to: '/settings', key: 'nav.settings' },
+]
+
+/** Hamburger nav for narrow screens; hidden on md+ where the links sit inline. */
+function MobileMenu() {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div className="relative md:hidden" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-7 h-7 rounded-full bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-base transition-colors flex items-center justify-center"
+        aria-label={t('nav.menu')}
+        aria-expanded={open}
+      >
+        ☰
+      </button>
+      {open && (
+        <div className="absolute right-0 top-10 w-52 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 py-2">
+          {navItems.map(({ to, key }) => (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={() => setOpen(false)}
+              className={({ isActive }) =>
+                `block px-4 py-2.5 text-sm font-medium transition-colors ${
+                  isActive
+                    ? 'bg-gray-700 text-white'
+                    : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                }`
+              }
+            >
+              {t(key)}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function App() {
   const { t } = useI18n()
   const { current, latest } = useVersion()
@@ -131,20 +189,20 @@ export default function App() {
         <UIProvider>
         <div className="min-h-screen bg-gray-950 text-gray-100">
           <nav className="bg-gray-900 border-b border-gray-700 pwa-safe-top pb-3">
-            <div className="max-w-7xl mx-auto flex items-center gap-2">
+            <div className="max-w-7xl mx-auto px-4 flex items-center gap-2">
               <img src="/favicon.svg" alt="Fotoxi" className="w-7 h-7" />
               <div className="mr-4">
                 <span className="text-white font-bold text-lg">Fotoxi</span>
                 {current && <span className="text-gray-600 text-xs ml-1">v{current}</span>}
               </div>
-              <NavLink to="/search" className={navLinkClass}>{t('nav.search')}</NavLink>
-              <NavLink to="/map" className={navLinkClass}>{t('nav.map')}</NavLink>
-              <NavLink to="/duplicates" className={navLinkClass}>{t('nav.duplicates')}</NavLink>
-              <NavLink to="/indexing" className={navLinkClass}>{t('nav.indexing')}</NavLink>
-              <NavLink to="/stats" className={navLinkClass}>{t('nav.stats')}</NavLink>
-              <NavLink to="/settings" className={navLinkClass}>{t('nav.settings')}</NavLink>
+              <div className="hidden md:flex items-center gap-2">
+                {navItems.map(({ to, key }) => (
+                  <NavLink key={to} to={to} className={navLinkClass}>{t(key)}</NavLink>
+                ))}
+              </div>
               <LangToggle />
               <HelpButton current={current} latest={latest} />
+              <MobileMenu />
             </div>
           </nav>
           <main className="max-w-7xl mx-auto px-4 py-6 pwa-safe-bottom">
