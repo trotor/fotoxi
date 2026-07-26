@@ -17,6 +17,7 @@ from backend.db.queries import (
     resolve_duplicate_group,
     retry_errored,
     search_images,
+    unresolve_duplicate_group,
 )
 from sqlalchemy import select
 
@@ -921,6 +922,25 @@ async def resolve_duplicate(
             reject_ids=body.reject,
         )
     return {"status": "resolved"}
+
+
+class UnresolveBody(BaseModel):
+    statuses: Dict[int, str] = {}
+
+
+@router.post("/duplicates/{group_id}/unresolve")
+async def unresolve_duplicate(
+    request: Request, group_id: int, body: UnresolveBody
+) -> Dict[str, Any]:
+    """Undo a duplicate-group resolution, restoring the given prior statuses."""
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        found = await unresolve_duplicate_group(
+            session=session, group_id=group_id, statuses=body.statuses
+        )
+    if not found:
+        raise HTTPException(status_code=404, detail="Duplicate group not found")
+    return {"status": "unresolved"}
 
 
 # ---------------------------------------------------------------------------

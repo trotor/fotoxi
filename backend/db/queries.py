@@ -286,6 +286,52 @@ async def resolve_duplicate_group(
     await session.commit()
 
 
+async def unresolve_duplicate_group(
+    session: AsyncSession,
+    group_id: int,
+    statuses: dict[int, str],
+) -> bool:
+    """Undo a resolution: clear user choices and restore prior image statuses.
+
+    The database does not keep the pre-resolution status, so the caller passes
+    it back in ``statuses`` (image id -> status). Images missing from the map
+    keep whatever status they currently have; their ``user_choice`` is cleared
+    regardless, so the group shows up as unresolved again.
+
+    Returns ``False`` if no such group exists.
+    """
+    group = await session.get(DuplicateGroup, group_id)
+    if group is None:
+        return False
+
+    member_result = await session.execute(
+        select(DuplicateGroupMember).where(DuplicateGroupMember.group_id == group_id)
+    )
+    members = list(member_result.scalars().all())
+
+    image_result = await session.execute(
+        select(Image).where(Image.id.in_([m.image_id for m in members]))
+    )
+    images = {img.id: img for img in image_result.scalars().all()}
+
+    _now = datetime.datetime.utcnow()
+    for member in members:
+        member.user_choice = None
+        previous = statuses.get(member.image_id)
+        image = images.get(member.image_id)
+        if previous is None or image is None:
+            continue
+        image.status = previous
+        image.status_changed_at = _now
+        if previous != "kept":
+            image.kept_at = None
+        if previous != "rejected":
+            image.rejected_at = None
+
+    await session.commit()
+    return True
+
+
 async def bulk_resolve_duplicates(
     session: AsyncSession,
     *,

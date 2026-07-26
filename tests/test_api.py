@@ -96,6 +96,62 @@ async def test_bulk_resolve_duplicates_dry_run(app, client):
 
 
 @pytest.mark.asyncio
+async def test_unresolve_duplicate_group(app, client):
+    """POST /api/duplicates/{id}/unresolve restores prior statuses and clears choices."""
+    from sqlalchemy import select
+    from backend.db.models import Image, DuplicateGroup, DuplicateGroupMember
+
+    factory = app.state.session_factory
+    async with factory() as s:
+        a = Image(file_path="/p/a.jpg", file_name="a.jpg", file_size=100,
+                  file_mtime=1.0, width=1000, height=1000, status="indexed")
+        b = Image(file_path="/p/b.jpg", file_name="b.jpg", file_size=100,
+                  file_mtime=2.0, width=2000, height=2000, status="indexed")
+        s.add_all([a, b])
+        await s.flush()
+        g = DuplicateGroup(match_type="burst")
+        s.add(g)
+        await s.flush()
+        s.add(DuplicateGroupMember(group_id=g.id, image_id=a.id, is_best=False))
+        s.add(DuplicateGroupMember(group_id=g.id, image_id=b.id, is_best=True))
+        await s.commit()
+        group_id, a_id, b_id = g.id, a.id, b.id
+
+    # Resolve: keep b, reject a.
+    resp = await client.post(
+        f"/api/duplicates/{group_id}/resolve", json={"keep": [b_id], "reject": [a_id]}
+    )
+    assert resp.status_code == 200
+
+    # Undo it, restoring both to their previous "indexed" status.
+    resp = await client.post(
+        f"/api/duplicates/{group_id}/unresolve",
+        json={"statuses": {str(a_id): "indexed", str(b_id): "indexed"}},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "unresolved"
+
+    async with factory() as s:
+        rows = (await s.execute(select(Image).where(Image.id.in_([a_id, b_id])))).scalars().all()
+        assert {r.status for r in rows} == {"indexed"}
+        assert all(r.rejected_at is None and r.kept_at is None for r in rows)
+
+        members = (
+            await s.execute(
+                select(DuplicateGroupMember).where(DuplicateGroupMember.group_id == group_id)
+            )
+        ).scalars().all()
+        assert all(m.user_choice is None for m in members)
+
+
+@pytest.mark.asyncio
+async def test_unresolve_unknown_group_returns_404(client):
+    """POST /api/duplicates/{id}/unresolve returns 404 for a group that doesn't exist."""
+    resp = await client.post("/api/duplicates/99999/unresolve", json={"statuses": {}})
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_version_endpoint(client):
     """GET /api/version returns the app version from pyproject (single source)."""
     import tomllib
