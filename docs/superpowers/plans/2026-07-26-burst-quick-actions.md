@@ -314,7 +314,7 @@ export interface AppSettings {
 
 ```json
   "settings.dup_confirm": "Vahvista tuplien pikavalinnat",
-  "settings.dup_confirm_desc": "Kysy varmistus ennen kuin sarjakuvan pikavalinta hylkää ruutuja. Ilman tätä hylkäys tapahtuu heti, ja sen voi perua ilmoituksesta.",
+  "settings.dup_confirm_desc": "Kysy varmistus ennen kuin kuvasarjan pikavalinta hylkää ruutuja. Ilman tätä hylkäys tapahtuu heti, ja sen voi perua ilmoituksesta.",
 ```
 
 `frontend/src/i18n/en.json`:
