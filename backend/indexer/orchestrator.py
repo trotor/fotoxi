@@ -150,10 +150,23 @@ class IndexerOrchestrator:
                     existing: Optional[Image] = result.scalar_one_or_none()
 
                     if existing is not None:
-                        # Re-index if size or mtime changed, but preserve user decisions
-                        if existing.file_size != file_size or existing.file_mtime != file_mtime:
+                        # Re-index if size or mtime changed, or if the row says the file
+                        # went missing but it is on disk again — a restored file can come
+                        # back byte-identical, so size/mtime alone would never notice it.
+                        changed_on_disk = (
+                            existing.file_size != file_size
+                            or existing.file_mtime != file_mtime
+                        )
+                        if changed_on_disk or existing.status == "missing":
                             existing.file_size = file_size
                             existing.file_mtime = file_mtime
+                            if changed_on_disk:
+                                # Content may differ, so both fingerprints are now stale.
+                                # process_file_hashes() only picks up rows where
+                                # file_hash IS NULL, so a stale hash would otherwise
+                                # survive forever and could form a false "exact" group.
+                                existing.file_hash = None
+                                existing.phash = None
                             # Only reset to pending if not a user decision (kept/rejected)
                             if existing.status not in ("kept", "rejected"):
                                 existing.status = "pending"

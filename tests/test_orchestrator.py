@@ -534,6 +534,68 @@ async def test_scan_returns_change_count(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_scan_clears_stale_hashes_on_changed_file(tmp_path):
+    """A changed file must have file_hash and phash cleared so both get recomputed."""
+    images_dir = tmp_path / "photos"
+    images_dir.mkdir()
+    jpg = images_dir / "change.jpg"
+    _make_jpeg(jpg)
+
+    config = Config(source_dirs=[str(images_dir)], thumbs_dir=str(tmp_path / "thumbs"))
+    session_factory = await _make_session_factory(tmp_path)
+    orchestrator = IndexerOrchestrator(config, session_factory)
+
+    await orchestrator.scan()
+
+    # Pretend the file was fully indexed, then changed on disk.
+    async with session_factory() as session:
+        image = (await session.execute(select(Image))).scalars().one()
+        image.status = "indexed"
+        image.file_hash = "stalehash"
+        image.phash = "stalephash"
+        await session.commit()
+
+    _make_jpeg(jpg, size=(400, 400))  # different size on disk
+
+    changed = await orchestrator.scan()
+
+    assert changed >= 1
+    async with session_factory() as session:
+        image = (await session.execute(select(Image))).scalars().one()
+        assert image.status == "pending"
+        assert image.file_hash is None
+        assert image.phash is None
+
+
+@pytest.mark.asyncio
+async def test_scan_revives_a_missing_file_that_reappears_identical(tmp_path):
+    """A 'missing' row whose file exists again must be re-queued even if size/mtime match."""
+    images_dir = tmp_path / "photos"
+    images_dir.mkdir()
+    jpg = images_dir / "back.jpg"
+    _make_jpeg(jpg)
+
+    config = Config(source_dirs=[str(images_dir)], thumbs_dir=str(tmp_path / "thumbs"))
+    session_factory = await _make_session_factory(tmp_path)
+    orchestrator = IndexerOrchestrator(config, session_factory)
+
+    await orchestrator.scan()
+
+    # The file is on disk and unchanged, but the row says it went missing.
+    async with session_factory() as session:
+        image = (await session.execute(select(Image))).scalars().one()
+        image.status = "missing"
+        await session.commit()
+
+    changed = await orchestrator.scan()
+
+    assert changed >= 1
+    async with session_factory() as session:
+        image = (await session.execute(select(Image))).scalars().one()
+        assert image.status == "pending"
+
+
+@pytest.mark.asyncio
 async def test_group_duplicates_runs_find_duplicate_groups_off_event_loop(tmp_path, monkeypatch):
     """find_duplicate_groups() must be dispatched to the thread pool, not
     called directly on the event loop (which would freeze the whole app)."""
