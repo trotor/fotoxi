@@ -24,6 +24,7 @@ export default function Settings() {
         ai_quality_enabled: data.ai_quality_enabled,
         phash_threshold: data.phash_threshold,
         custom_tag_label: data.custom_tag_label,
+        dup_confirm_quick_actions: data.dup_confirm_quick_actions,
       })
     }
   }, [data])
@@ -123,6 +124,24 @@ export default function Settings() {
             </label>
             <p className="text-xs text-gray-500 mt-0.5">
               {t('settings.quality_desc')}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            id="dupConfirm"
+            checked={form.dup_confirm_quick_actions ?? false}
+            onChange={e => setForm(f => ({ ...f, dup_confirm_quick_actions: e.target.checked }))}
+            className="mt-0.5 w-4 h-4 rounded border-gray-600 bg-gray-800 accent-blue-500 cursor-pointer"
+          />
+          <div>
+            <label htmlFor="dupConfirm" className="text-sm text-gray-300 cursor-pointer">
+              {t('settings.dup_confirm')}
+            </label>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {t('settings.dup_confirm_desc')}
             </p>
           </div>
         </div>

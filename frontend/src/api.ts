@@ -100,6 +100,7 @@ export interface AppSettings {
   phash_threshold: number
   custom_tag_label: string
   source_dirs: string[]
+  dup_confirm_quick_actions: boolean
 }
 
 export async function searchImages(params: {

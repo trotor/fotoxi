@@ -57,6 +57,20 @@ async def test_get_settings(client):
 
 
 @pytest.mark.asyncio
+async def test_dup_confirm_quick_actions_setting_roundtrip(client):
+    """The duplicate quick-action confirm flag defaults off and can be toggled."""
+    resp = await client.get("/api/settings")
+    assert resp.status_code == 200
+    assert resp.json()["dup_confirm_quick_actions"] is False
+
+    resp = await client.put("/api/settings", json={"dup_confirm_quick_actions": True})
+    assert resp.status_code == 200
+
+    resp = await client.get("/api/settings")
+    assert resp.json()["dup_confirm_quick_actions"] is True
+
+
+@pytest.mark.asyncio
 async def test_get_duplicates(client):
     """GET /api/duplicates should return 200 with an empty list."""
     response = await client.get("/api/duplicates")

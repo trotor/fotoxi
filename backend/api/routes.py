@@ -1359,6 +1359,7 @@ class SettingsUpdate(BaseModel):
     auto_process_on_start: Optional[bool] = None
     ui_language: Optional[str] = None
     custom_tag_label: Optional[str] = None
+    dup_confirm_quick_actions: Optional[bool] = None
 
 
 @router.get("/settings")
@@ -1458,7 +1459,7 @@ async def _save_settings_to_db(request: Request) -> None:
         "source_dirs", "ollama_model", "ollama_url", "ai_language",
         "ai_quality_enabled", "phash_threshold", "burst_time_window",
         "ollama_concurrency", "exclude_patterns", "auto_process_on_start", "ui_language",
-        "custom_tag_label",
+        "custom_tag_label", "dup_confirm_quick_actions",
     ]
     config_dict = dataclasses.asdict(config)
 

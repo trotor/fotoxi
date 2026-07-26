@@ -121,6 +121,8 @@
   "settings.language": "AI description language",
   "settings.quality": "AI quality scoring",
   "settings.quality_desc": "Let AI rate image technical quality",
+  "settings.dup_confirm": "Confirm duplicate quick actions",
+  "settings.dup_confirm_desc": "Ask before a burst quick action rejects frames. Without it the rejection happens immediately and can be undone from the notification.",
   "settings.threshold": "Duplicate sensitivity (pHash threshold)",
   "settings.strict": "Strict",
   "settings.loose": "Loose",

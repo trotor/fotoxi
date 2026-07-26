@@ -31,6 +31,7 @@ class Config:
     ai_thumb_size: int = 512
     custom_tag_label: str = "sentimental"
     auto_process_on_start: bool = False
+    dup_confirm_quick_actions: bool = False
 
     @property
     def ai_thumbs_dir(self) -> str:

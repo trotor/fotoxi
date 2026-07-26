@@ -121,6 +121,8 @@
   "settings.language": "AI-kuvausten kieli",
   "settings.quality": "AI-laatuarvio",
   "settings.quality_desc": "Anna AI:n arvioida kuvien tekninen laatu",
+  "settings.dup_confirm": "Vahvista tuplien pikavalinnat",
+  "settings.dup_confirm_desc": "Kysy varmistus ennen kuin sarjakuvan pikavalinta hylkää ruutuja. Ilman tätä hylkäys tapahtuu heti, ja sen voi perua ilmoituksesta.",
   "settings.threshold": "Duplikaattien herkkyys (pHash-kynnys)",
   "settings.strict": "Tiukka",
   "settings.loose": "Loysa",
