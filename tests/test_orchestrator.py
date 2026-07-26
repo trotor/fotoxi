@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from pathlib import Path
 from typing import List
 
@@ -10,7 +11,7 @@ from PIL import Image as PilImage
 from sqlalchemy import select
 
 from backend.config import Config
-from backend.db.models import Image
+from backend.db.models import DuplicateGroup, Image
 from backend.db.session import create_engine_and_init
 from backend.indexer.orchestrator import IndexerOrchestrator, IndexerState
 
@@ -404,3 +405,176 @@ async def test_process_file_hashes_is_noop_when_all_hashed(tmp_path):
     # Early return leaves the counters untouched — nothing was queued for hashing.
     assert orchestrator.state.total == 0
     assert orchestrator.state.processed == 0
+
+
+# ---------------------------------------------------------------------------
+# 0.4.15: skip grouping when nothing changed, and get grouping off the loop
+# ---------------------------------------------------------------------------
+
+
+def _no_op_recorder(calls: List[str], name: str, return_value=None):
+    async def _fn(*args, **kwargs):
+        calls.append(name)
+        return return_value
+    return _fn
+
+
+@pytest.mark.asyncio
+async def test_run_full_skips_grouping_when_nothing_changed(tmp_path, monkeypatch):
+    """No scan changes, no metadata work, no new hashes, and a group already
+    exists -> run_full() must not re-run group_duplicates()."""
+    images_dir = tmp_path / "photos"
+    images_dir.mkdir()
+
+    config = Config(
+        source_dirs=[str(images_dir)],
+        thumbs_dir=str(tmp_path / "thumbs"),
+        thread_pool_size=1,
+    )
+    session_factory = await _make_session_factory(tmp_path)
+
+    async with session_factory() as session:
+        # Fully processed already: not pending (no metadata work), has both
+        # hashes, and already has an AI description (no AI work either).
+        session.add(
+            Image(
+                file_path="/p/indexed.jpg", file_name="indexed.jpg", file_size=10,
+                file_mtime=1.0, status="indexed", phash="abc", file_hash="def",
+                ai_description="already described",
+            )
+        )
+        # A duplicate group already exists from a previous run.
+        session.add(DuplicateGroup(match_type="phash"))
+        await session.commit()
+
+    orchestrator = IndexerOrchestrator(config, session_factory)
+    calls: List[str] = []
+
+    monkeypatch.setattr(orchestrator, "scan", _no_op_recorder(calls, "scan", 0))
+    monkeypatch.setattr(
+        orchestrator, "process_file_hashes", _no_op_recorder(calls, "process_file_hashes", 0)
+    )
+    for name in (
+        "process_metadata", "process_ai", "process_geocoding",
+        "process_gps_inheritance", "group_duplicates", "_evict_cloud_files",
+    ):
+        monkeypatch.setattr(orchestrator, name, _no_op_recorder(calls, name))
+
+    await orchestrator.run_full()
+
+    assert "group_duplicates" not in calls
+    # The rest of the pipeline still runs.
+    assert "_evict_cloud_files" in calls
+    assert orchestrator.state.phase == "complete"
+
+
+@pytest.mark.asyncio
+async def test_run_full_still_groups_when_no_groups_exist_yet(tmp_path, monkeypatch):
+    """Same 'nothing changed' situation as above, but duplicate_groups is
+    empty -> run_full() must still run group_duplicates() at least once."""
+    images_dir = tmp_path / "photos"
+    images_dir.mkdir()
+
+    config = Config(
+        source_dirs=[str(images_dir)],
+        thumbs_dir=str(tmp_path / "thumbs"),
+        thread_pool_size=1,
+    )
+    session_factory = await _make_session_factory(tmp_path)
+
+    async with session_factory() as session:
+        session.add(
+            Image(
+                file_path="/p/indexed.jpg", file_name="indexed.jpg", file_size=10,
+                file_mtime=1.0, status="indexed", phash="abc", file_hash="def",
+                ai_description="already described",
+            )
+        )
+        # No DuplicateGroup rows at all yet.
+        await session.commit()
+
+    orchestrator = IndexerOrchestrator(config, session_factory)
+    calls: List[str] = []
+
+    monkeypatch.setattr(orchestrator, "scan", _no_op_recorder(calls, "scan", 0))
+    monkeypatch.setattr(
+        orchestrator, "process_file_hashes", _no_op_recorder(calls, "process_file_hashes", 0)
+    )
+    for name in (
+        "process_metadata", "process_ai", "process_geocoding",
+        "process_gps_inheritance", "group_duplicates", "_evict_cloud_files",
+    ):
+        monkeypatch.setattr(orchestrator, name, _no_op_recorder(calls, name))
+
+    await orchestrator.run_full()
+
+    assert "group_duplicates" in calls
+
+
+@pytest.mark.asyncio
+async def test_scan_returns_change_count(tmp_path):
+    """scan() returns the number of rows it created/updated, and 0 when a
+    re-scan finds nothing new."""
+    images_dir = tmp_path / "photos"
+    images_dir.mkdir()
+    for name in ("a.jpg", "b.jpg"):
+        _make_jpeg(images_dir / name)
+
+    config = Config(source_dirs=[str(images_dir)], thumbs_dir=str(tmp_path / "thumbs"))
+    session_factory = await _make_session_factory(tmp_path)
+
+    orchestrator = IndexerOrchestrator(config, session_factory)
+    count = await orchestrator.scan()
+    assert count == 2
+
+    # Re-scan: nothing changed on disk, so nothing should be reported changed.
+    orchestrator2 = IndexerOrchestrator(config, session_factory)
+    count2 = await orchestrator2.scan()
+    assert count2 == 0
+
+
+@pytest.mark.asyncio
+async def test_group_duplicates_runs_find_duplicate_groups_off_event_loop(tmp_path, monkeypatch):
+    """find_duplicate_groups() must be dispatched to the thread pool, not
+    called directly on the event loop (which would freeze the whole app)."""
+    import backend.indexer.orchestrator as orch_mod
+
+    config = Config(
+        source_dirs=[str(tmp_path / "photos")],
+        thumbs_dir=str(tmp_path / "thumbs"),
+    )
+    session_factory = await _make_session_factory(tmp_path)
+
+    async with session_factory() as session:
+        session.add(
+            Image(
+                file_path="/p/a.jpg", file_name="a.jpg", file_size=1, file_mtime=1.0,
+                status="indexed", phash="0000000000000000",
+            )
+        )
+        session.add(
+            Image(
+                file_path="/p/b.jpg", file_name="b.jpg", file_size=1, file_mtime=1.0,
+                status="indexed", phash="0000000000000000",
+            )
+        )
+        await session.commit()
+
+    orchestrator = IndexerOrchestrator(config, session_factory)
+
+    seen_threads: List[threading.Thread] = []
+    original = orch_mod.find_duplicate_groups
+
+    def _spy(*args, **kwargs):
+        seen_threads.append(threading.current_thread())
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(orch_mod, "find_duplicate_groups", _spy)
+
+    await orchestrator.group_duplicates()
+
+    assert len(seen_threads) == 1, "find_duplicate_groups should be called exactly once"
+    assert seen_threads[0] is not threading.main_thread(), (
+        "find_duplicate_groups ran on the main/event-loop thread instead of "
+        "being dispatched to the executor"
+    )

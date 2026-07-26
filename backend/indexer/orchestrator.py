@@ -7,6 +7,7 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -99,8 +100,14 @@ class IndexerOrchestrator:
     # Phase 1: scan
     # ------------------------------------------------------------------
 
-    async def scan(self) -> None:
-        """Scan source directories and create/update Image rows."""
+    async def scan(self) -> int:
+        """Scan source directories and create/update Image rows.
+
+        Returns the number of image rows created or updated during this run
+        (new files added, existing files whose size/mtime changed, and files
+        marked missing because they disappeared from disk).
+        """
+        changed_count = 0
         self.state.phase = "scanning"
         self.state.total = 0
         self.state.processed = 0
@@ -119,7 +126,7 @@ class IndexerOrchestrator:
                 await asyncio.sleep(0)  # yield to event loop for stop checks
                 if self._stop_event.is_set():
                     logger.info("scan: stop requested, aborting")
-                    return
+                    return changed_count
 
                 str_path = str(file_path)
                 found_paths.add(str_path)
@@ -152,6 +159,7 @@ class IndexerOrchestrator:
                                 existing.status = "pending"
                                 existing.error_message = None
                             await session.commit()
+                            changed_count += 1
                             logger.debug("scan: marked changed file for re-index: %s", str_path)
                     else:
                         # New file
@@ -165,6 +173,7 @@ class IndexerOrchestrator:
                         )
                         session.add(image)
                         await session.commit()
+                        changed_count += 1
                         logger.debug("scan: added new file: %s", str_path)
 
                 self.state.processed += 1
@@ -185,7 +194,7 @@ class IndexerOrchestrator:
             missing_count = 0
             for image in all_images:
                 if self._stop_event.is_set():
-                    return
+                    return changed_count + missing_count
                 if image.file_path not in found_paths:
                     image.status = "missing"
                     image.status_changed_at = _dt.datetime.utcnow()
@@ -198,6 +207,7 @@ class IndexerOrchestrator:
 
         self.state.total = self.state.processed
         self._notify()
+        return changed_count + missing_count
 
     # ------------------------------------------------------------------
     # Phase 2: process metadata
@@ -361,10 +371,11 @@ class IndexerOrchestrator:
     # Phase 2a: File hashes
     # ------------------------------------------------------------------
 
-    async def process_file_hashes(self) -> None:
+    async def process_file_hashes(self) -> int:
         """Compute SHA-256 file hashes for images that don't have one yet.
 
         Only processes locally available files (skips missing/error).
+        Returns the number of new hashes computed.
         """
         from backend.indexer.hasher import compute_file_hash
 
@@ -384,7 +395,7 @@ class IndexerOrchestrator:
 
         if not candidates:
             logger.info("process_file_hashes: all images already have file_hash")
-            return
+            return 0
 
         self.state.total = len(candidates)
         self._notify()
@@ -449,6 +460,7 @@ class IndexerOrchestrator:
 
         self.state.log(f"#️⃣ {self.state.processed} file hashes computed")
         logger.info("process_file_hashes: computed %d hashes", self.state.processed)
+        return self.state.processed
 
     # ------------------------------------------------------------------
     # Phase 2b: Reverse geocoding
@@ -853,10 +865,15 @@ class IndexerOrchestrator:
         ]
 
         logger.info("group_duplicates: analyzing %d images for duplicates", len(image_dicts))
-        groups = find_duplicate_groups(
-            image_dicts,
-            phash_threshold=self.config.phash_threshold,
-            burst_window=self.config.burst_time_window,
+        loop = asyncio.get_event_loop()
+        groups = await loop.run_in_executor(
+            None,
+            partial(
+                find_duplicate_groups,
+                image_dicts,
+                phash_threshold=self.config.phash_threshold,
+                burst_window=self.config.burst_time_window,
+            ),
         )
         logger.info("group_duplicates: found %d raw duplicate groups", len(groups))
 
@@ -990,14 +1007,14 @@ class IndexerOrchestrator:
         self._notify()
 
         try:
-            await self.scan()
+            scan_count = await self.scan()
             if self._stop_event.is_set():
                 self.state.phase = "idle"
                 return
 
             # File hashes before anything can evict cloud files: hashing reads
             # each file in full, and an evicted file would be re-downloaded.
-            await self.process_file_hashes()
+            hash_count = await self.process_file_hashes()
             if self._stop_event.is_set():
                 self.state.phase = "idle"
                 return
@@ -1053,10 +1070,33 @@ class IndexerOrchestrator:
 
             # Grouping needs both phash (metadata phase) and file_hash above.
             # Resolved groups are preserved by group_duplicates() itself.
-            await self.group_duplicates()
-            if self._stop_event.is_set():
-                self.state.phase = "idle"
-                return
+            # Skip it entirely when nothing this run could have changed the
+            # result: no new/updated images, no metadata (phash) computed, no
+            # new file hashes -- unless there are no groups yet at all, in
+            # which case we must run at least once to produce them.
+            from backend.db.models import DuplicateGroup
+            async with self.session_factory() as session:
+                result = await session.execute(select(DuplicateGroup.id).limit(1))
+                has_existing_groups = result.scalar_one_or_none() is not None
+
+            should_group = (
+                bool(scan_count)
+                or has_metadata_work
+                or bool(hash_count)
+                or not has_existing_groups
+            )
+
+            if should_group:
+                await self.group_duplicates()
+                if self._stop_event.is_set():
+                    self.state.phase = "idle"
+                    return
+            else:
+                logger.info(
+                    "run_full: skipping duplicate grouping - nothing changed "
+                    "since last run (no scan changes, no metadata work, no "
+                    "new hashes, and groups already exist)"
+                )
 
             # Evict cloud files after all processing is done
             await self._evict_cloud_files()

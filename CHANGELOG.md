@@ -2,6 +2,12 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.15] - 2026-07-26
+
+### Fixed
+- **Duplicate grouping no longer freezes the app for 30+ seconds** — 0.4.14 folded `group_duplicates()` into the automatic `run_full()` pipeline, but its call to the synchronous, CPU-bound `find_duplicate_groups()` ran directly on the asyncio event loop instead of in a thread pool like every other heavy phase. On the real library (37,984 rows) this blocked the whole FastAPI process for 32.4 seconds on every index run — no search, no thumbnails, no WebSocket progress, not even the Stop button. It now runs via `loop.run_in_executor()`, the same pattern `process_metadata()`/`process_file_hashes()` already use. The grouping algorithm and its memory profile are unchanged and out of scope. (`orchestrator.py`)
+- **Grouping now skips itself when nothing could have changed** — also a 0.4.14 regression: every `run_full()` call re-ran duplicate grouping even when the run touched nothing relevant. It's now skipped unless `scan()` created/updated a row, the metadata phase ran (computes `phash`), `process_file_hashes()` computed a new hash, or the `duplicate_groups` table is still empty (so a never-grouped library still gets grouped once). `scan()` and `process_file_hashes()` now return the count of rows they changed instead of `None`. (`orchestrator.py`)
+
 ## [0.4.14] - 2026-07-26
 
 ### Changed
