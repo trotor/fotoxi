@@ -6,7 +6,6 @@ import {
   startIndexer,
   stopIndexer,
   processOnly,
-  computeHashes,
   getSettings,
   updateSettings,
   getCloudFolders,
@@ -228,30 +227,6 @@ export default function Indexing() {
             <span className="font-medium text-gray-100">{phaseLabel}</span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {!status.running && (
-              <>
-                <button
-                  onClick={async () => {
-                    await processOnly()
-                    setStatus(prev => ({ ...prev, running: true, phase: 'metadata' }))
-                  }}
-                  className="px-4 py-2 rounded text-sm font-medium bg-blue-700 hover:bg-blue-600 text-white transition-colors"
-                  title="Käsittele vain puuttuvat metatiedot ja AI (ei skannaa kansioita)"
-                >
-                  {t('idx.process_missing')}
-                </button>
-                <button
-                  onClick={async () => {
-                    await computeHashes()
-                    setStatus(prev => ({ ...prev, running: true, phase: 'hashing' }))
-                  }}
-                  className="px-4 py-2 rounded text-sm font-medium bg-purple-700 hover:bg-purple-600 text-white transition-colors"
-                  title="Laske SHA-256 tunnisteet tiedostoille"
-                >
-                  {t('idx.compute_hashes')}
-                </button>
-              </>
-            )}
             <button
               onClick={handleStartStop}
               disabled={stopping}

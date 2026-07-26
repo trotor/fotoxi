@@ -305,11 +305,6 @@ export async function findDuplicates(): Promise<void> {
   if (!res.ok) throw new Error(`Find duplicates failed: ${res.status}`)
 }
 
-export async function computeHashes(): Promise<void> {
-  const res = await fetch(`${BASE}/indexer/compute-hashes`, { method: 'POST' })
-  if (!res.ok) throw new Error(`Compute hashes failed: ${res.status}`)
-}
-
 export interface GeocodeSuggestion {
   display_name: string
   lat: number
