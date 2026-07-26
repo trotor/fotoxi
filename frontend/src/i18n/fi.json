@@ -187,6 +187,7 @@
   "dup.keep_recommended_short": "Säilytä suositeltu",
   "dup.reject_count": "hylkää",
   "dup.frames_rejected": "ruutua hylätty",
+  "dup.images_rejected": "kuvaa hylätty",
   "dup.confirm_reduce": "Hylätäänkö muut ruudut?",
   "dup.resolve_failed": "Tallennus epäonnistui. Yritä uudelleen.",
   "dup.undo_failed": "Kumoaminen epäonnistui. Yritä uudelleen.",

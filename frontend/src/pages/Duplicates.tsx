@@ -280,31 +280,60 @@ export default function Duplicates() {
     queryClient.invalidateQueries({ queryKey: ['duplicates'] })
   }
 
-  /** Resolve with given keep/reject and move to next. `onDone` fires only once the
-   *  resolve has actually succeeded, so callers can safely react to a confirmed change. */
-  function resolveAndNext(keepIds: number[], rejectIds: number[], onDone?: () => void) {
+  /** Resolve with given keep/reject and move to next.
+   *
+   *  Uses mutateAsync rather than mutate's onSuccess callback: TanStack Query v5
+   *  skips mutate-scoped callbacks if the component unmounts before the mutation
+   *  settles, but the mutation still lands — which would silently drop the toast
+   *  and the undo affordance.
+   *
+   *  Any resolution that rejects at least one image offers an undo. The database
+   *  does not keep the pre-resolution status, so it is captured here beforehand. */
+  async function resolveAndNext(keepIds: number[], rejectIds: number[]) {
     if (!group) return
     const groupId = group.id
-    resolveMutation.mutate(
-      { groupId, keepIds, rejectIds },
-      {
-        onSuccess: () => {
-          afterResolve(groupId)
-          onDone?.()
-        },
+
+    const previous: Record<number, string> = {}
+    members.forEach(m => {
+      if (m.image?.status) previous[m.image_id] = m.image.status
+    })
+
+    try {
+      await resolveMutation.mutateAsync({ groupId, keepIds, rejectIds })
+    } catch {
+      return // the mutation-level onError already surfaced the failure
+    }
+    afterResolve(groupId)
+
+    if (rejectIds.length === 0) return // nothing rejected, nothing to undo
+
+    const runUndo = async () => {
+      try {
+        await unresolveDuplicateGroup(groupId, previous)
+        queryClient.invalidateQueries({ queryKey: ['duplicates'] })
+      } catch {
+        toast(t('dup.undo_failed'), {
+          variant: 'error',
+          duration: 12000,
+          action: { label: t('common.undo'), onClick: runUndo },
+        })
       }
-    )
+    }
+    toast(`${rejectIds.length} ${t('dup.images_rejected')}`, {
+      duration: 12000,
+      action: { label: t('common.undo'), onClick: runUndo },
+    })
   }
 
   /** One-click: keep largest, reject rest, confirm, next */
-  function handleAutoConfirm() {
+  async function handleAutoConfirm() {
     if (!group) return
     const rejectIds = members.filter(m => m.image_id !== suggestedBestId).map(m => m.image_id)
     const keepIds = [suggestedBestId]
-    resolveAndNext(keepIds, rejectIds)
+    await resolveAndNext(keepIds, rejectIds)
   }
 
-  /** Burst quick action: keep the recommended frame, reject the rest, with undo. */
+  /** Burst quick action: keep the recommended frame, reject the rest. */
   async function handleBurstReduce() {
     if (!group) return
     const rejectIds = members
@@ -320,50 +349,16 @@ export default function Duplicates() {
       if (!ok) return
     }
 
-    // The DB does not keep the pre-resolution status, so remember it for undo.
-    const groupId = group.id
-    const previous: Record<number, string> = {}
-    members.forEach(m => {
-      if (m.image?.status) previous[m.image_id] = m.image.status
-    })
-
-    // Use mutateAsync (tied to this promise) rather than mutate's onSuccess callback
-    // (tied to component mount): TanStack Query v5 skips mutate-scoped callbacks if
-    // the component unmounts before the mutation settles, but the mutation still
-    // lands - which would silently drop the toast and the undo affordance.
-    try {
-      await resolveMutation.mutateAsync({ groupId, keepIds: [suggestedBestId], rejectIds })
-    } catch {
-      return // the mutation-level onError already surfaced the failure
-    }
-    afterResolve(groupId)
-
-    // Only claim success - and offer Undo - once the reject actually landed.
-    const runUndo = async () => {
-      try {
-        await unresolveDuplicateGroup(groupId, previous)
-        queryClient.invalidateQueries({ queryKey: ['duplicates'] })
-      } catch {
-        toast(t('dup.undo_failed'), {
-          variant: 'error',
-          duration: 12000,
-          action: { label: t('common.undo'), onClick: runUndo },
-        })
-      }
-    }
-    toast(`${rejectIds.length} ${t('dup.frames_rejected')}`, {
-      duration: 12000,
-      action: { label: t('common.undo'), onClick: runUndo },
-    })
+    await resolveAndNext([suggestedBestId], rejectIds)
   }
 
   /** One-click: keep images from this folder, reject rest, confirm, next */
-  function handleKeepFolderConfirm(folder: string) {
+  async function handleKeepFolderConfirm(folder: string) {
     if (!group) return
     const keepIds = members.filter(m => m.image && folderOf(m.image.file_path) === folder).map(m => m.image_id)
     const rejectIds = members.filter(m => m.image && folderOf(m.image.file_path) !== folder).map(m => m.image_id)
     if (keepIds.length === 0 || rejectIds.length === 0) return
-    resolveAndNext(keepIds, rejectIds)
+    await resolveAndNext(keepIds, rejectIds)
   }
 
   /** Manual select: keep largest, show in UI (don't confirm yet) */
@@ -375,25 +370,25 @@ export default function Duplicates() {
     setRejected(prev => ({ ...prev, [group.id]: toReject }))
   }
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!group) return
     const rejectIds = Array.from(groupRejected)
     const keepIds = members.map(m => m.image_id).filter(id => !groupRejected.has(id))
-    resolveAndNext(keepIds, rejectIds)
+    await resolveAndNext(keepIds, rejectIds)
   }
 
   /** Reject ALL images in this group */
-  function handleRejectAll() {
+  async function handleRejectAll() {
     if (!group) return
     const rejectIds = members.map(m => m.image_id)
-    resolveAndNext([], rejectIds)
+    await resolveAndNext([], rejectIds)
   }
 
   /** Keep ALL images in this group and mark as resolved */
-  function handleKeepAll() {
+  async function handleKeepAll() {
     if (!group) return
     const keepIds = members.map(m => m.image_id)
-    resolveAndNext(keepIds, [])
+    await resolveAndNext(keepIds, [])
   }
 
   function handleSkip() {
@@ -579,7 +574,7 @@ export default function Duplicates() {
               className="bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-blue-400 text-xs px-3 py-1.5 rounded border border-blue-900 transition-colors"
               title={folder}
             >
-              {t('dup.keep_folder')} .../{shortFolder(folder).split('/').pop()} ({t('dup.reject')} {rejectCount})
+              {t('dup.keep_folder')} .../{shortFolder(folder).split('/').pop()} ({t('dup.reject_count')} {rejectCount})
             </button>
           )
         })}
