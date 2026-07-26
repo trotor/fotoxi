@@ -2,6 +2,14 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.14] - 2026-07-26
+
+### Changed
+- **One indexing button instead of three** — "Process missing" and "Compute hashes" are gone from the Indexing view. `run_full()` now covers the whole pipeline: scan → file hashes → metadata + AI → geocoding → GPS inheritance → duplicate grouping → cloud eviction. Hashing runs before eviction (it reads each file in full, and an evicted cloud file would be re-downloaded) and grouping runs after metadata (it needs both `phash` and `file_hash`). Previously neither hashing nor duplicate grouping belonged to any automatic pipeline — they were reachable only from their own buttons. (`orchestrator.py`, `Indexing.tsx`)
+
+### Removed
+- Unused `computeHashes()` helper in `api.ts`. The backend `/indexer/compute-hashes` route stays for manual runs, as does `/indexer/process`, which the error-retry flow still calls.
+
 ## [0.4.13] - 2026-07-10
 
 ### Fixed
