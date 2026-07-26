@@ -2,6 +2,16 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.16] - 2026-07-26
+
+### Added
+- **"Keep recommended" quick action for bursts** — burst groups used to offer only a big "Keep all" button, with the reduce-to-best action buried in a small underlined link. Bursts now show two side-by-side primary buttons: "Keep all (N)" and "Keep recommended (reject N−1)". (`Duplicates.tsx`)
+- **Undo for burst quick actions** — rejecting frames shows a toast with an **Undo** action. Undo calls the new `POST /api/duplicates/{group_id}/unresolve`, which clears the members' `user_choice` and restores the images' prior statuses. The client sends those statuses back, since the database does not keep them — the same approach the Search page already uses. (`queries.py`, `routes.py`, `api.ts`)
+- **`dup_confirm_quick_actions` setting** — off by default. When enabled, a burst quick action asks for confirmation before rejecting frames. (`config.py`, `Settings.tsx`)
+
+### Fixed
+- **Reject toast no longer claims success ahead of a confirmed save** — the success toast (and its Undo action) now fires only once `resolveAndNext`'s resolve call actually succeeds, closing a race where tapping Undo before the in-flight resolve landed let the later response overwrite the undo. A failed resolve now surfaces its own error toast instead of silently claiming the frames were rejected, and a failed undo shows an error toast instead of dismissing as if it had worked. (`Duplicates.tsx`)
+
 ## [0.4.15] - 2026-07-26
 
 ### Fixed
