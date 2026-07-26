@@ -1,8 +1,10 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { DuplicateGroup, DuplicateMember, BulkResolveSummary } from '../api'
-import { getDuplicates, findDuplicates, bulkResolveDuplicates, thumbUrl } from '../api'
+import { getDuplicates, findDuplicates, bulkResolveDuplicates, thumbUrl,
+         unresolveDuplicateGroup, getSettings } from '../api'
 import { useI18n } from '../i18n/useTranslation'
+import { useToast } from '../components/Toast'
 
 /** Human-readable byte size */
 function formatBytes(bytes: number): string {
@@ -94,6 +96,8 @@ function findBest(members: DuplicateMember[]): number {
 
 export default function Duplicates() {
   const queryClient = useQueryClient()
+  const { toast, confirm } = useToast()
+  const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings })
   const [dupPage, setDupPage] = useState(1)
   const [rejected, setRejected] = useState<Record<number, Set<number>>>({})
   const [groupIndex, setGroupIndex] = useState(0)
@@ -285,6 +289,42 @@ export default function Duplicates() {
     resolveAndNext(keepIds, rejectIds)
   }
 
+  /** Burst quick action: keep the recommended frame, reject the rest, with undo. */
+  async function handleBurstReduce() {
+    if (!group) return
+    const rejectIds = members
+      .filter(m => m.image_id !== suggestedBestId)
+      .map(m => m.image_id)
+    if (rejectIds.length === 0) return
+
+    if (settings?.dup_confirm_quick_actions) {
+      const ok = await confirm(t('dup.confirm_reduce'), {
+        confirmLabel: t('dup.reject'),
+        danger: true,
+      })
+      if (!ok) return
+    }
+
+    // The DB does not keep the pre-resolution status, so remember it for undo.
+    const groupId = group.id
+    const previous: Record<number, string> = {}
+    members.forEach(m => {
+      if (m.image?.status) previous[m.image_id] = m.image.status
+    })
+
+    resolveAndNext([suggestedBestId], rejectIds)
+
+    toast(`${rejectIds.length} ${t('dup.frames_rejected')}`, {
+      action: {
+        label: t('common.undo'),
+        onClick: async () => {
+          await unresolveDuplicateGroup(groupId, previous)
+          queryClient.invalidateQueries({ queryKey: ['duplicates'] })
+        },
+      },
+    })
+  }
+
   /** One-click: keep images from this folder, reject rest, confirm, next */
   function handleKeepFolderConfirm(folder: string) {
     if (!group) return
@@ -442,23 +482,23 @@ export default function Duplicates() {
       {/* Default action - prominent. Bursts default to 'keep all' (never auto-reject frames). */}
       {isBurst ? (
         <div className="space-y-2">
-          <button
-            onClick={handleKeepAll}
-            disabled={resolveMutation.isPending}
-            className="w-full bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-sm px-4 py-3 rounded-lg transition-colors font-medium"
-          >
-            {t('dup.burst_keep_all')} ({members.length})
-          </button>
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-xs text-amber-400/80">{t('dup.burst_note')}</p>
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={handleAutoConfirm}
+              onClick={handleKeepAll}
               disabled={resolveMutation.isPending}
-              className="text-xs text-gray-400 hover:text-gray-200 underline disabled:opacity-40"
+              className="flex-1 min-w-[9rem] bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-sm px-4 py-3 rounded-lg transition-colors font-medium"
             >
-              {t('dup.reduce_to_best')}
+              {t('dup.burst_keep_all')} ({members.length})
+            </button>
+            <button
+              onClick={handleBurstReduce}
+              disabled={resolveMutation.isPending || members.length < 2}
+              className="flex-1 min-w-[9rem] bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-200 text-sm px-4 py-3 rounded-lg border border-gray-600 transition-colors font-medium"
+            >
+              {t('dup.keep_recommended_short')} ({t('dup.reject_count')} {members.length - 1})
             </button>
           </div>
+          <p className="text-xs text-amber-400/80">{t('dup.burst_note')}</p>
         </div>
       ) : (
         <button

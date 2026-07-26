@@ -258,6 +258,18 @@ export async function bulkResolveDuplicates(params: {
   return res.json()
 }
 
+export async function unresolveDuplicateGroup(
+  groupId: number,
+  statuses: Record<number, string>,
+): Promise<void> {
+  const res = await fetch(`${BASE}/duplicates/${groupId}/unresolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ statuses }),
+  })
+  if (!res.ok) throw new Error(`Unresolve failed: ${res.status}`)
+}
+
 export interface ErrorsSummary {
   causes: { cause: string; count: number }[]
   total_errors: number
