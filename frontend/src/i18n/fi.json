@@ -190,6 +190,8 @@
   "dup.reject_count": "hylkää",
   "dup.frames_rejected": "ruutua hylätty",
   "dup.confirm_reduce": "Hylätäänkö muut ruudut?",
+  "dup.resolve_failed": "Tallennus epäonnistui. Yritä uudelleen.",
+  "dup.undo_failed": "Kumoaminen epäonnistui. Yritä uudelleen.",
   "dup.mode_label": "Klikkaus valitsee:",
   "dup.mode_keep": "Sailytettava",
   "dup.mode_reject": "Hylattavat",

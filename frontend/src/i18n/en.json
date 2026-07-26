@@ -190,6 +190,8 @@
   "dup.reject_count": "reject",
   "dup.frames_rejected": "frames rejected",
   "dup.confirm_reduce": "Reject the other frames?",
+  "dup.resolve_failed": "Save failed. Please try again.",
+  "dup.undo_failed": "Undo failed. Please try again.",
   "dup.mode_label": "Click selects:",
   "dup.mode_keep": "Keeper",
   "dup.mode_reject": "Rejects",

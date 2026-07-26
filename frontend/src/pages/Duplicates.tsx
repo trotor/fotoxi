@@ -135,6 +135,9 @@ export default function Duplicates() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['duplicates'] })
     },
+    onError: () => {
+      toast(t('dup.resolve_failed'), { variant: 'error' })
+    },
   })
 
   const group: DuplicateGroup | null = groups[groupIndex] ?? null
@@ -259,8 +262,9 @@ export default function Duplicates() {
     else toggleReject(imageId)
   }
 
-  /** Resolve with given keep/reject and move to next */
-  function resolveAndNext(keepIds: number[], rejectIds: number[]) {
+  /** Resolve with given keep/reject and move to next. `onDone` fires only once the
+   *  resolve has actually succeeded, so callers can safely react to a confirmed change. */
+  function resolveAndNext(keepIds: number[], rejectIds: number[], onDone?: () => void) {
     if (!group) return
     resolveMutation.mutate(
       { groupId: group.id, keepIds, rejectIds },
@@ -276,6 +280,7 @@ export default function Duplicates() {
             setGroupIndex(0)
           }
           queryClient.invalidateQueries({ queryKey: ['duplicates'] })
+          onDone?.()
         },
       }
     )
@@ -312,16 +317,21 @@ export default function Duplicates() {
       if (m.image?.status) previous[m.image_id] = m.image.status
     })
 
-    resolveAndNext([suggestedBestId], rejectIds)
-
-    toast(`${rejectIds.length} ${t('dup.frames_rejected')}`, {
-      action: {
-        label: t('common.undo'),
-        onClick: async () => {
-          await unresolveDuplicateGroup(groupId, previous)
-          queryClient.invalidateQueries({ queryKey: ['duplicates'] })
+    resolveAndNext([suggestedBestId], rejectIds, () => {
+      // Only claim success - and offer Undo - once the reject actually landed.
+      toast(`${rejectIds.length} ${t('dup.frames_rejected')}`, {
+        action: {
+          label: t('common.undo'),
+          onClick: async () => {
+            try {
+              await unresolveDuplicateGroup(groupId, previous)
+              queryClient.invalidateQueries({ queryKey: ['duplicates'] })
+            } catch {
+              toast(t('dup.undo_failed'), { variant: 'error' })
+            }
+          },
         },
-      },
+      })
     })
   }
 
