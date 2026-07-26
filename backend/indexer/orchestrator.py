@@ -852,6 +852,10 @@ class IndexerOrchestrator:
         self.state.current_file = ""
         self._notify()
 
+        if self._stop_event.is_set():
+            logger.info("group_duplicates: stop requested, skipping")
+            return
+
         # Load all images with phash or file_hash
         async with self.session_factory() as session:
             from sqlalchemy import or_
@@ -882,6 +886,10 @@ class IndexerOrchestrator:
             for img in all_images
         ]
 
+        if self._stop_event.is_set():
+            logger.info("group_duplicates: stop requested before grouping")
+            return
+
         logger.info("group_duplicates: analyzing %d images for duplicates", len(image_dicts))
         loop = asyncio.get_event_loop()
         groups = await loop.run_in_executor(
@@ -894,6 +902,10 @@ class IndexerOrchestrator:
             ),
         )
         logger.info("group_duplicates: found %d raw duplicate groups", len(groups))
+
+        if self._stop_event.is_set():
+            logger.info("group_duplicates: stop requested, discarding results")
+            return
 
         # Filter out groups where ALL members are from Photos Library (internal duplicates)
         PHOTOS_LIB = "Photos Library.photoslibrary"
@@ -941,6 +953,10 @@ class IndexerOrchestrator:
             await session.commit()
 
             # Create new groups, excluding images already in resolved groups
+            self.state.total = len(groups)
+            self.state.processed = 0
+            self._notify()
+
             for group_data in groups:
                 new_ids = [id for id in group_data["image_ids"] if id not in resolved_image_ids]
                 if len(new_ids) < 2:
@@ -958,9 +974,12 @@ class IndexerOrchestrator:
                     )
                     session.add(member)
 
+                self.state.processed += 1
+                if self.state.processed % 50 == 0:
+                    self._notify()
+
             await session.commit()
 
-        self.state.processed = len(groups)
         self._notify()
 
     # ------------------------------------------------------------------

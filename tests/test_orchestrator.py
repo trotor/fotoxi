@@ -646,3 +646,50 @@ async def test_group_duplicates_runs_find_duplicate_groups_off_event_loop(tmp_pa
         "find_duplicate_groups ran on the main/event-loop thread instead of "
         "being dispatched to the executor"
     )
+
+
+@pytest.mark.asyncio
+async def test_group_duplicates_honours_stop_request(tmp_path):
+    """Grouping creates a group for this data, and a stop request prevents exactly that."""
+    from backend.db.models import DuplicateGroup
+
+    async def _seed(factory):
+        async with factory() as session:
+            for i in range(2):
+                session.add(
+                    Image(
+                        file_path=f"/p/dup{i}.jpg", file_name=f"dup{i}.jpg", file_size=10,
+                        file_mtime=float(i), status="indexed", phash="f" * 16,
+                    )
+                )
+            await session.commit()
+
+    async def _group_count(factory):
+        async with factory() as session:
+            return len((await session.execute(select(DuplicateGroup))).scalars().all())
+
+    config = Config(
+        source_dirs=[str(tmp_path / "photos")],
+        thumbs_dir=str(tmp_path / "thumbs"),
+    )
+
+    # _make_session_factory writes <dir>/test.db but does not create <dir> itself.
+    control_dir = tmp_path / "control"
+    stopped_dir = tmp_path / "stopped"
+    control_dir.mkdir()
+    stopped_dir.mkdir()
+
+    # Control: without a stop request, this data DOES produce a group. Without this
+    # half, the assertion below would pass vacuously.
+    control_factory = await _make_session_factory(control_dir)
+    await _seed(control_factory)
+    await IndexerOrchestrator(config, control_factory).group_duplicates()
+    assert await _group_count(control_factory) == 1
+
+    # Same data, stop requested first: nothing is written.
+    stopped_factory = await _make_session_factory(stopped_dir)
+    await _seed(stopped_factory)
+    stopped = IndexerOrchestrator(config, stopped_factory)
+    stopped.request_stop()
+    await stopped.group_duplicates()
+    assert await _group_count(stopped_factory) == 0
