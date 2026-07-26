@@ -995,6 +995,13 @@ class IndexerOrchestrator:
                 self.state.phase = "idle"
                 return
 
+            # File hashes before anything can evict cloud files: hashing reads
+            # each file in full, and an evicted file would be re-downloaded.
+            await self.process_file_hashes()
+            if self._stop_event.is_set():
+                self.state.phase = "idle"
+                return
+
             # Check if there are images needing AI (already indexed but no description)
             has_ai_work = False
             async with self.session_factory() as session:
@@ -1040,6 +1047,13 @@ class IndexerOrchestrator:
                 return
 
             await self.process_gps_inheritance()
+            if self._stop_event.is_set():
+                self.state.phase = "idle"
+                return
+
+            # Grouping needs both phash (metadata phase) and file_hash above.
+            # Resolved groups are preserved by group_duplicates() itself.
+            await self.group_duplicates()
             if self._stop_event.is_set():
                 self.state.phase = "idle"
                 return

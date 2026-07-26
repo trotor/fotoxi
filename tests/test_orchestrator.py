@@ -265,3 +265,142 @@ async def test_scan_re_indexes_changed_files(tmp_path):
         img = result.scalar_one()
 
     assert img.status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_run_full_includes_hashing_and_grouping(tmp_path, monkeypatch):
+    """run_full() hashes before eviction and groups duplicates after metadata."""
+    images_dir = tmp_path / "photos"
+    images_dir.mkdir()
+
+    config = Config(
+        source_dirs=[str(images_dir)],
+        thumbs_dir=str(tmp_path / "thumbs"),
+        thread_pool_size=1,
+    )
+    session_factory = await _make_session_factory(tmp_path)
+
+    # Give run_full() both metadata work and AI work so neither branch is skipped.
+    async with session_factory() as session:
+        session.add(
+            Image(
+                file_path="/p/pending.jpg", file_name="pending.jpg", file_size=10,
+                file_mtime=1.0, status="pending",
+            )
+        )
+        session.add(
+            Image(
+                file_path="/p/indexed.jpg", file_name="indexed.jpg", file_size=10,
+                file_mtime=2.0, status="indexed", ai_description=None,
+            )
+        )
+        await session.commit()
+
+    orchestrator = IndexerOrchestrator(config, session_factory)
+
+    calls: List[str] = []
+
+    def _recorder(name: str):
+        async def _fn(*args, **kwargs):
+            calls.append(name)
+        return _fn
+
+    for name in (
+        "scan", "process_file_hashes", "process_metadata", "process_ai",
+        "process_geocoding", "process_gps_inheritance", "group_duplicates",
+        "_evict_cloud_files",
+    ):
+        monkeypatch.setattr(orchestrator, name, _recorder(name))
+
+    await orchestrator.run_full()
+
+    assert "process_file_hashes" in calls
+    assert "group_duplicates" in calls
+    # Hashing reads whole files, so it must precede cloud eviction.
+    assert calls.index("scan") < calls.index("process_file_hashes")
+    assert calls.index("process_file_hashes") < calls.index("_evict_cloud_files")
+    # Grouping needs phash from the metadata phase, and must precede eviction.
+    assert calls.index("process_metadata") < calls.index("group_duplicates")
+    assert calls.index("group_duplicates") < calls.index("_evict_cloud_files")
+    assert orchestrator.state.running is False
+    assert orchestrator.state.phase == "complete"
+
+
+@pytest.mark.asyncio
+async def test_run_full_stop_skips_grouping_and_eviction(tmp_path, monkeypatch):
+    """A stop requested mid-pipeline skips the remaining phases."""
+    images_dir = tmp_path / "photos"
+    images_dir.mkdir()
+
+    config = Config(
+        source_dirs=[str(images_dir)],
+        thumbs_dir=str(tmp_path / "thumbs"),
+        thread_pool_size=1,
+    )
+    session_factory = await _make_session_factory(tmp_path)
+
+    async with session_factory() as session:
+        session.add(
+            Image(
+                file_path="/p/pending.jpg", file_name="pending.jpg", file_size=10,
+                file_mtime=1.0, status="pending",
+            )
+        )
+        await session.commit()
+
+    orchestrator = IndexerOrchestrator(config, session_factory)
+
+    calls: List[str] = []
+
+    def _recorder(name: str):
+        async def _fn(*args, **kwargs):
+            calls.append(name)
+        return _fn
+
+    for name in (
+        "scan", "process_file_hashes", "process_ai", "process_geocoding",
+        "process_gps_inheritance", "group_duplicates", "_evict_cloud_files",
+    ):
+        monkeypatch.setattr(orchestrator, name, _recorder(name))
+
+    # Metadata phase asks to stop; everything after it must be skipped.
+    async def _metadata_then_stop(*args, **kwargs):
+        calls.append("process_metadata")
+        orchestrator.request_stop()
+
+    monkeypatch.setattr(orchestrator, "process_metadata", _metadata_then_stop)
+
+    await orchestrator.run_full()
+
+    assert "process_metadata" in calls
+    assert "group_duplicates" not in calls
+    assert "_evict_cloud_files" not in calls
+    assert orchestrator.state.running is False
+    assert orchestrator.state.phase == "idle"
+
+
+@pytest.mark.asyncio
+async def test_process_file_hashes_is_noop_when_all_hashed(tmp_path):
+    """process_file_hashes() does no work when every image already has a hash."""
+    config = Config(
+        source_dirs=[str(tmp_path / "photos")],
+        thumbs_dir=str(tmp_path / "thumbs"),
+    )
+    session_factory = await _make_session_factory(tmp_path)
+
+    async with session_factory() as session:
+        session.add(
+            Image(
+                file_path="/p/done.jpg", file_name="done.jpg", file_size=10,
+                file_mtime=1.0, status="indexed", file_hash="abc123",
+            )
+        )
+        await session.commit()
+
+    orchestrator = IndexerOrchestrator(config, session_factory)
+    orchestrator.state.total = 0
+    await orchestrator.process_file_hashes()
+
+    # Early return leaves the counters untouched — nothing was queued for hashing.
+    assert orchestrator.state.total == 0
+    assert orchestrator.state.processed == 0
