@@ -12,7 +12,7 @@
 
 - Trunk-based: committoi suoraan `main`iin. Ei feature-brancheja, ei PR:iä.
 - Venv on aktivoitava ennen jokaista Python-komentoa: `source .venv/bin/activate`.
-- Versionnosto `pyproject.toml`:iin ja merkintä `CHANGELOG.md`:hen tässä työssä: **→ 0.4.15**. Jos suunnitelma `2026-07-26-indexing-consolidation.md` on jo toteutettu, lähtöversio on 0.4.14; muussa tapauksessa nosta 0.4.13 → 0.4.14 ja käytä sitä numeroa kauttaaltaan.
+- Versionnosto `pyproject.toml`:iin ja merkintä `CHANGELOG.md`:hen tässä työssä: **0.4.15 → 0.4.16**. (Suunnitelma `2026-07-26-indexing-consolidation.md` on toteutettu ja julkaistu 0.4.14:nä, ja sen jälkikorjaus vei numeron 0.4.15. Käytä 0.4.16:ta kauttaaltaan, myös alla olevassa CHANGELOG-esimerkissä.)
 - `CHANGELOG.md` kirjoitetaan **englanniksi** (kuten aiemmat merkinnät). Käyttöliittymätekstit tulevat i18n-avaimista.
 - `frontend/dist` rakennetaan uudelleen (`cd frontend && npm run build`) frontend-muutosten jälkeen.
 - UI:ta käytetään puhelimella Tailscalen yli — muuttunut UI tarkistetaan ~390px leveydellä.
@@ -594,8 +594,10 @@ Expected: kaikki vihreinä, mukana kolme uutta testiä (`test_unresolve_duplicat
 
 - [ ] **Step 5: Commit and push**
 
+`frontend/dist` on gitignoressa (`frontend/.gitignore:11`) eikä sitä committoida — build tehdään paikallisesti, ja palvelu tarjoilee sen työhakemistosta. Lavasta tiedostot nimeltä; älä käytä `git add -A` tai `git add .`, koska repon juuressa lojuu seuraamaton `package-lock.json`, joka ei kuulu versionhallintaan.
+
 ```bash
-git add pyproject.toml CHANGELOG.md frontend/dist
+git add pyproject.toml CHANGELOG.md
 git commit -m "chore: release v0.4.15"
 git push
 ```
