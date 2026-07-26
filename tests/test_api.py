@@ -166,6 +166,31 @@ async def test_unresolve_unknown_group_returns_404(client):
 
 
 @pytest.mark.asyncio
+async def test_unresolve_rejects_bogus_status(app, client):
+    """POST /api/duplicates/{id}/unresolve returns 422 for a status value outside the known set."""
+    from backend.db.models import DuplicateGroup, DuplicateGroupMember, Image
+
+    factory = app.state.session_factory
+    async with factory() as s:
+        a = Image(file_path="/p/a.jpg", file_name="a.jpg", file_size=100,
+                  file_mtime=1.0, width=1000, height=1000, status="indexed")
+        s.add(a)
+        await s.flush()
+        g = DuplicateGroup(match_type="burst")
+        s.add(g)
+        await s.flush()
+        s.add(DuplicateGroupMember(group_id=g.id, image_id=a.id, is_best=True))
+        await s.commit()
+        group_id, a_id = g.id, a.id
+
+    resp = await client.post(
+        f"/api/duplicates/{group_id}/unresolve",
+        json={"statuses": {str(a_id): "bogus_status"}},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_version_endpoint(client):
     """GET /api/version returns the app version from pyproject (single source)."""
     import tomllib

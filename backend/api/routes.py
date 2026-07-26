@@ -5,7 +5,7 @@ import asyncio
 import dataclasses
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
@@ -925,7 +925,9 @@ async def resolve_duplicate(
 
 
 class UnresolveBody(BaseModel):
-    statuses: Dict[int, str] = {}
+    statuses: Dict[
+        int, Literal["pending", "indexed", "kept", "rejected", "missing", "error"]
+    ] = {}
 
 
 @router.post("/duplicates/{group_id}/unresolve")

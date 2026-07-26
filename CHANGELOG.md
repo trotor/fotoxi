@@ -2,6 +2,14 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.17] - 2026-07-26
+
+### Fixed
+- **Burst quick-action undo no longer disappears if you navigate away mid-request** — `handleBurstReduce` fired its toast (and Undo action) from a `mutate`-scoped `onSuccess` callback, which TanStack Query v5 does not invoke once the owning component unmounts. The reject still landed on the server, but a user who tapped "Keep recommended" and immediately switched pages got no toast and no way to undo. It now uses `mutateAsync`, tying the toast to the resolve's own promise instead of to whether `Duplicates` is still mounted, while still only showing the toast once the resolve is confirmed. The shared post-resolve cleanup (clearing local rejection state, advancing past the resolved group, refreshing the list) is factored into one `afterResolve()` helper used by both this path and the existing `resolveAndNext`. (`Duplicates.tsx`)
+- **A failed undo no longer strands the user with nothing to retry** — `Toast.tsx`'s action button dismisses the toast synchronously on click, before the async undo call resolves, so the error toast that followed a failed unresolve told the user to "try again" with the Undo button already gone. The undo body is now a named, re-armable function passed as the `action` on the error toast itself, so a failed undo can be retried directly from the failure toast. (`Duplicates.tsx`)
+- **Reject/undo-failure toasts now last long enough to act on** — both toasts above previously relied on `Toast.tsx`'s 5s default, too short for a "review, then tap Undo" decision. They now pass `duration: 12000` at the call site; the shared default and every other toast are unchanged. (`Duplicates.tsx`)
+- **`/duplicates/{id}/unresolve` rejects unrecognized status values** — `UnresolveBody.statuses` accepted any string, and `unresolve_duplicate_group` wrote it straight to `Image.status`; a stale or garbled client could plant a value none of the pipeline's `status.notin_([...])` predicates account for. The field is now typed `Literal["pending", "indexed", "kept", "rejected", "missing", "error"]`, so a bad value is a 422 instead of silent data corruption. (`routes.py`)
+
 ## [0.4.16] - 2026-07-26
 
 ### Added

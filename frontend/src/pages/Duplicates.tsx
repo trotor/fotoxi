@@ -262,24 +262,34 @@ export default function Duplicates() {
     else toggleReject(imageId)
   }
 
+  /** Shared post-resolve cleanup: clear this group's local rejection state, advance
+   *  past it if it was the last on the page, and refresh the duplicates list. Used
+   *  by both the mutate-callback path (resolveAndNext) and the mutateAsync path
+   *  (handleBurstReduce), which needs the resolution's completion tied to a promise
+   *  rather than to component mount state. */
+  function afterResolve(resolvedGroupId: number) {
+    setRejected(prev => {
+      const next = { ...prev }
+      delete next[resolvedGroupId]
+      return next
+    })
+    // If we're at the end of current page, reset index
+    if (groupIndex >= groups.length - 1) {
+      setGroupIndex(0)
+    }
+    queryClient.invalidateQueries({ queryKey: ['duplicates'] })
+  }
+
   /** Resolve with given keep/reject and move to next. `onDone` fires only once the
    *  resolve has actually succeeded, so callers can safely react to a confirmed change. */
   function resolveAndNext(keepIds: number[], rejectIds: number[], onDone?: () => void) {
     if (!group) return
+    const groupId = group.id
     resolveMutation.mutate(
-      { groupId: group.id, keepIds, rejectIds },
+      { groupId, keepIds, rejectIds },
       {
         onSuccess: () => {
-          setRejected(prev => {
-            const next = { ...prev }
-            delete next[group.id]
-            return next
-          })
-          // If we're at the end of current page, reset index
-          if (groupIndex >= groups.length - 1) {
-            setGroupIndex(0)
-          }
-          queryClient.invalidateQueries({ queryKey: ['duplicates'] })
+          afterResolve(groupId)
           onDone?.()
         },
       }
@@ -317,21 +327,33 @@ export default function Duplicates() {
       if (m.image?.status) previous[m.image_id] = m.image.status
     })
 
-    resolveAndNext([suggestedBestId], rejectIds, () => {
-      // Only claim success - and offer Undo - once the reject actually landed.
-      toast(`${rejectIds.length} ${t('dup.frames_rejected')}`, {
-        action: {
-          label: t('common.undo'),
-          onClick: async () => {
-            try {
-              await unresolveDuplicateGroup(groupId, previous)
-              queryClient.invalidateQueries({ queryKey: ['duplicates'] })
-            } catch {
-              toast(t('dup.undo_failed'), { variant: 'error' })
-            }
-          },
-        },
-      })
+    // Use mutateAsync (tied to this promise) rather than mutate's onSuccess callback
+    // (tied to component mount): TanStack Query v5 skips mutate-scoped callbacks if
+    // the component unmounts before the mutation settles, but the mutation still
+    // lands - which would silently drop the toast and the undo affordance.
+    try {
+      await resolveMutation.mutateAsync({ groupId, keepIds: [suggestedBestId], rejectIds })
+    } catch {
+      return // the mutation-level onError already surfaced the failure
+    }
+    afterResolve(groupId)
+
+    // Only claim success - and offer Undo - once the reject actually landed.
+    const runUndo = async () => {
+      try {
+        await unresolveDuplicateGroup(groupId, previous)
+        queryClient.invalidateQueries({ queryKey: ['duplicates'] })
+      } catch {
+        toast(t('dup.undo_failed'), {
+          variant: 'error',
+          duration: 12000,
+          action: { label: t('common.undo'), onClick: runUndo },
+        })
+      }
+    }
+    toast(`${rejectIds.length} ${t('dup.frames_rejected')}`, {
+      duration: 12000,
+      action: { label: t('common.undo'), onClick: runUndo },
     })
   }
 
