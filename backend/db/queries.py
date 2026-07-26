@@ -242,7 +242,7 @@ async def resolve_duplicate_group(
     group_id: int,
     keep_ids: list[int],
     reject_ids: list[int],
-) -> None:
+) -> bool:
     """Resolve a duplicate group by setting user choices on members and images.
 
     For each image_id in ``keep_ids``:   member.user_choice = "keep",   image.status = "kept".
@@ -254,6 +254,12 @@ async def resolve_duplicate_group(
     group_id:   Primary key of the DuplicateGroup to resolve.
     keep_ids:   List of image IDs to mark as kept.
     reject_ids: List of image IDs to mark as rejected.
+
+    Returns
+    -------
+    bool
+        ``False`` if the group does not exist or none of the given ids are
+        members of it (i.e. nothing was changed); ``True`` otherwise.
     """
     all_ids = list(keep_ids) + list(reject_ids)
 
@@ -263,6 +269,9 @@ async def resolve_duplicate_group(
     )
     member_result = await session.execute(member_stmt)
     members = list(member_result.scalars().all())
+
+    if not members:
+        return False
 
     image_stmt = select(Image).where(Image.id.in_(all_ids))
     image_result = await session.execute(image_stmt)
@@ -284,6 +293,7 @@ async def resolve_duplicate_group(
                 images[member.image_id].rejected_at = _now
 
     await session.commit()
+    return True
 
 
 async def unresolve_duplicate_group(

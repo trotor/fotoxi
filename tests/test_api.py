@@ -110,6 +110,15 @@ async def test_bulk_resolve_duplicates_dry_run(app, client):
 
 
 @pytest.mark.asyncio
+async def test_resolve_unknown_group_returns_404(client):
+    """POST /api/duplicates/{id}/resolve must not silently succeed for a stale group."""
+    resp = await client.post(
+        "/api/duplicates/99999/resolve", json={"keep": [1], "reject": [2]}
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_unresolve_duplicate_group(app, client):
     """POST /api/duplicates/{id}/unresolve restores prior statuses and clears choices."""
     from sqlalchemy import select

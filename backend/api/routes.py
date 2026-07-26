@@ -915,12 +915,14 @@ async def resolve_duplicate(
 ) -> Dict[str, Any]:
     session_factory = request.app.state.session_factory
     async with session_factory() as session:
-        await resolve_duplicate_group(
+        found = await resolve_duplicate_group(
             session=session,
             group_id=group_id,
             keep_ids=body.keep,
             reject_ids=body.reject,
         )
+    if not found:
+        raise HTTPException(status_code=404, detail="Duplicate group not found")
     return {"status": "resolved"}
 
 

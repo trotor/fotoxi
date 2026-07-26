@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { AppSettings } from '../api'
 import { getSettings, updateSettings } from '../api'
 import { useI18n } from '../i18n/useTranslation'
 
 export default function Settings() {
   const { t } = useI18n()
+  const queryClient = useQueryClient()
   const { data, isLoading, isError } = useQuery({
     queryKey: ['settings'],
     queryFn: getSettings,
@@ -32,6 +33,7 @@ export default function Settings() {
   const mutation = useMutation({
     mutationFn: (values: Partial<AppSettings>) => updateSettings(values),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
