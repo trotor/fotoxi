@@ -582,9 +582,12 @@ async def test_scan_revives_a_missing_file_that_reappears_identical(tmp_path):
     await orchestrator.scan()
 
     # The file is on disk and unchanged, but the row says it went missing.
+    # Give it real fingerprints so we can tell "preserved" from "wiped" below.
     async with session_factory() as session:
         image = (await session.execute(select(Image))).scalars().one()
         image.status = "missing"
+        image.file_hash = "keepthishash"
+        image.phash = "keepthisphash"
         await session.commit()
 
     changed = await orchestrator.scan()
@@ -593,6 +596,9 @@ async def test_scan_revives_a_missing_file_that_reappears_identical(tmp_path):
     async with session_factory() as session:
         image = (await session.execute(select(Image))).scalars().one()
         assert image.status == "pending"
+        # Unchanged content: fingerprints must survive the missing->pending revival.
+        assert image.file_hash == "keepthishash"
+        assert image.phash == "keepthisphash"
 
 
 @pytest.mark.asyncio

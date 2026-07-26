@@ -161,14 +161,19 @@ class IndexerOrchestrator:
                             existing.file_size = file_size
                             existing.file_mtime = file_mtime
                             if changed_on_disk:
-                                # Content may differ, so both fingerprints are now stale.
-                                # process_file_hashes() only picks up rows where
-                                # file_hash IS NULL, so a stale hash would otherwise
-                                # survive forever and could form a false "exact" group.
+                                # Content may differ, so file_hash is now stale.
+                                # process_file_hashes() refills file_hash for any status
+                                # except missing/error, so clearing it is always safe.
                                 existing.file_hash = None
-                                existing.phash = None
                             # Only reset to pending if not a user decision (kept/rejected)
                             if existing.status not in ("kept", "rejected"):
+                                if changed_on_disk:
+                                    # phash is only recomputed by process_metadata(), which
+                                    # runs on pending rows — so only clear it when the row
+                                    # is actually going back to pending. Nulling it for a
+                                    # kept/rejected row would lose it permanently, since
+                                    # nothing would ever recompute it.
+                                    existing.phash = None
                                 existing.status = "pending"
                                 existing.error_message = None
                             await session.commit()
