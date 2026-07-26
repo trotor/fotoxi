@@ -263,10 +263,9 @@ export default function Duplicates() {
   }
 
   /** Shared post-resolve cleanup: clear this group's local rejection state, advance
-   *  past it if it was the last on the page, and refresh the duplicates list. Used
-   *  by both the mutate-callback path (resolveAndNext) and the mutateAsync path
-   *  (handleBurstReduce), which needs the resolution's completion tied to a promise
-   *  rather than to component mount state. */
+   *  past it if it was the last on the page, and refresh the duplicates list. Called
+   *  only from resolveAndNext, the single path all resolve actions (including the
+   *  burst quick action) now go through. */
   function afterResolve(resolvedGroupId: number) {
     setRejected(prev => {
       const next = { ...prev }

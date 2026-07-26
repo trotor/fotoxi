@@ -2,6 +2,16 @@
 
 All notable changes to Fotoxi are documented here.
 
+## [0.4.18] - 2026-07-26
+
+### Fixed
+- **Undo is now offered by every duplicate action that rejects images, not only the burst quick action** (#59) — "Reject all" and the other resolve paths called `resolveAndNext` without ever showing an undo affordance, so discarding a whole group left no way back. `resolveAndNext` now captures each member's pre-resolution status and offers the same toast-with-undo the burst quick action already had, for any resolution that rejects at least one image. (`Duplicates.tsx`)
+- **Resolving a duplicate group that no longer exists now 404s instead of reporting a silent success** (#52) — `resolve_duplicate_group` always returned success even when no group members matched the requested id (already resolved or deleted). It now returns `False` in that case, and the route raises a 404 instead of the previous `{"status": "resolved"}`. (`routes.py`, `queries.py`)
+- **Saving settings now takes effect immediately instead of up to 30s later** (#60) — the settings-save mutation never invalidated the `['settings']` query, so a saved change only surfaced once TanStack Query's background refetch happened to fire. `onSuccess` now invalidates the query directly. (`Settings.tsx`)
+- **Stale hashes no longer survive a changed file, and a reappearing `missing` file is recognized again** (#54, #58) — when a file's size or mtime changed, its old `file_hash`/`phash` were left in place even though the content behind them was gone, letting a stale hash form a false "exact duplicate" match; a `missing` row whose file reappeared byte-identical was never revisited at all, since only a size/mtime change triggered re-indexing. `file_hash` is now cleared on any content change, and `phash` is cleared only when the row is actually reset to `pending` — clearing it for a `kept`/`rejected` row would lose it permanently, since `process_metadata()` only recomputes `phash` for pending rows. (`orchestrator.py`)
+- **Duplicate grouping now honours a Stop request, and reports real progress instead of sitting at 0% until it jumps to 12%** (#55) — grouping ignored the stop signal entirely, including mid-write, so a Stop partway through a run could leave the `duplicate_groups` table half-rewritten. It now checks the stop flag before loading images, before the CPU-bound grouping pass, and again before the write phase begins, so a stopped run makes no database changes. Progress now increments per group written instead of jumping straight from 0% to done. (`orchestrator.py`)
+- **Finnish strings regained their ä/ö, and burst groups consistently say "kuvasarja" instead of "sarjakuva"** (#56) — a first pass restored diacritics dropped from roughly 60 values in `fi.json`, and a further sweep caught the remainder; "sarjakuva" ("comic strip") is replaced with "kuvasarja" for photo bursts. Separately, `search.rejected` was defined twice in both `fi.json` and `en.json` — the JSON parser silently kept only the second (singular) definition, so the status-filter chip rendered the singular "Hylätty" where the plural "Hylätyt" belonged. The duplicate is removed and a dedicated `search.rejected_filter` key added for the chip; the reject toast's `search.rejected` is unchanged. (`fi.json`, `en.json`, `Search.tsx`)
+
 ## [0.4.17] - 2026-07-26
 
 ### Fixed
