@@ -36,7 +36,23 @@ Tämä on puhdas merkkijonotehtävä: ei logiikkaa, ei komponentteja.
 
 - [ ] **Step 1: Korjaa ääkköset `fi.json`:ssä**
 
-Nämä 28 arvoa ovat menettäneet ä/ö-merkkinsä. Korjaa jokainen. Vasemmalla avain, oikealla oikea arvo:
+**Tavoite on kattavuus, ei lista.** Alla oleva luettelo on lähtökohta, ei rajaus: se johdettiin hakukaavalla, joka osoittautui epätäydelliseksi. Käy läpi **jokainen** `fi.json`:n arvo ja korjaa jokainen, jonka suomesta puuttuu ä tai ö. Arvioi tekstiä kielenä, älä kaavana.
+
+Varo ylikorjaamista. Nämä ovat oikein sellaisenaan: `"Duplikaatit"`, `"Visuaalinen kopio"`, `"AI-laatuarvio"`, `"Laatu"`, ja erityisesti `"Sarjakuvaus"` — se tarkoittaa sarjakuvausta eli burst-kuvaustapaa ja on `match_type`-suodattimen nimi. Jos jokin merkkijono on epäselvä, jätä se ja mainitse raportissa.
+
+Nämä olivat ensimmäisen läpikäynnin ulkopuolella ja ovat varmistetusti rikki:
+
+```
+idx.stop              = "Pysäytä"
+idx.stopping          = "Pysäytetään..."
+dup.rejecting         = "Hylätään"
+search.date           = "Päivämäärä"
+idx.phase.starting    = "Käynnistyy..."
+common.processed      = "käsitelty"
+idx.errors_reset_done = "palautettu uudelleenkäsittelyyn"
+```
+
+Ja nämä 28 tunnistettiin ensin. Vasemmalla avain, oikealla oikea arvo:
 
 ```
 search.show                = "Näytä:"
