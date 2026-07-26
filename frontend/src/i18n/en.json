@@ -12,7 +12,7 @@
   "search.show": "Show:",
   "search.indexed": "Indexed",
   "search.kept": "Kept",
-  "search.rejected": "Rejected",
+  "search.rejected_filter": "Rejected",
   "search.pending": "Pending",
   "search.sort": "Sort:",
   "search.date": "Date",

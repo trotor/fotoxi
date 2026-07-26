@@ -920,7 +920,7 @@ export default function Search() {
         {[
           { key: 'indexed', label: t('search.indexed'), activeColor: 'bg-gray-600 text-gray-100', },
           { key: 'kept', label: t('search.kept'), activeColor: 'bg-green-700 text-white' },
-          { key: 'rejected', label: t('search.rejected'), activeColor: 'bg-red-800 text-red-100' },
+          { key: 'rejected', label: t('search.rejected_filter'), activeColor: 'bg-red-800 text-red-100' },
           { key: 'pending', label: t('search.pending'), activeColor: 'bg-yellow-700 text-yellow-100' },
           { key: 'missing', label: t('search.missing'), activeColor: 'bg-purple-800 text-purple-100' },
         ].map(f => {

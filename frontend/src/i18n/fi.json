@@ -12,7 +12,7 @@
   "search.show": "Näytä:",
   "search.indexed": "Indeksoitu",
   "search.kept": "Säilytetyt",
-  "search.rejected": "Hylätyt",
+  "search.rejected_filter": "Hylätyt",
   "search.pending": "Odottavat",
   "search.sort": "Järjestä:",
   "search.date": "Päivämäärä",
